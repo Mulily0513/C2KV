@@ -5,7 +5,7 @@ import (
 	"github.com/ColdToo/Cold2DB/log"
 	"github.com/ColdToo/Cold2DB/pb"
 	types "github.com/ColdToo/Cold2DB/transport/types"
-	"io"
+	"net"
 	"sync"
 )
 
@@ -18,20 +18,20 @@ type streamWriter struct {
 	peerID  types.ID
 	peerIp  string
 
-	enc    *messageEncoderAndWriter
+	enc    *msgEncoderAndWriter
 	status *peerStatus
-	r      RaftTransport
+	r      RaftOperator
 	mu     sync.Mutex // guard field working and enc
 	paused bool
 
-	msgC   chan pb.Message     //Peer会将待发送的消息写入到该通道，streamWriter则从该通道中读取消息并发送出去
-	connC  chan io.WriteCloser //通过该通道获取当前streamWriter实例关联的底层网络连接
+	msgC   chan pb.Message //Peer会将待发送的消息写入到该通道，streamWriter则从该通道中读取消息并发送出去
+	connC  chan net.Conn   //通过该通道获取当前streamWriter实例关联的底层网络连接
 	stopC  chan struct{}
 	done   chan struct{}
 	errorC chan error
 }
 
-func startStreamWriter(local, id types.ID, status *peerStatus, r RaftTransport, errorC chan error, peerIp string) *streamWriter {
+func startStreamWriter(local, id types.ID, status *peerStatus, r RaftOperator, errorC chan error, peerIp string) *streamWriter {
 	w := &streamWriter{
 		localID: local,
 		peerID:  id,
@@ -39,7 +39,7 @@ func startStreamWriter(local, id types.ID, status *peerStatus, r RaftTransport, 
 		peerIp:  peerIp,
 		r:       r,
 		msgC:    make(chan pb.Message, streamBufSize),
-		connC:   make(chan io.WriteCloser),
+		connC:   make(chan net.Conn),
 		stopC:   make(chan struct{}),
 		done:    make(chan struct{}),
 		errorC:  errorC,
@@ -65,21 +65,14 @@ func (cw *streamWriter) run() {
 					Str(code.RemoteId, cw.peerID.Str()).Record()
 			}
 		case conn := <-cw.connC:
-			cw.mu.Lock()
-			closed := cw.closeUnlocked()
-			if closed {
-				log.Info("success close existed TCP streaming connection when get a new conn").Str(code.LocalId, cw.localID.Str()).
-					Str(code.RemoteId, cw.peerID.Str()).Record()
-			}
-			cw.enc = &messageEncoderAndWriter{conn}
+			//todo 接收到新链接时需要断开旧的链接
+			cw.enc = &msgEncoderAndWriter{conn}
 			cw.status.activate()
-			cw.mu.Unlock()
 			msgC = cw.msgC
-			log.Info("established TCP streaming connection with remote peer").Str(code.LocalId, cw.localID.Str()).
-				Str(code.RemoteId, cw.peerID.Str()).Record()
+			log.Info("established TCP streaming connection with remote peer").Str(code.LocalId, cw.localID.Str()).Str(code.RemoteId, cw.peerID.Str()).Record()
 		case <-cw.stopC:
 			if cw.close() {
-				log.Info("closed TCP streaming connection with remote peer").Str(code.RemoteId, cw.peerID.Str()).Record()
+				log.Info("close TCP streaming connection with remote peer").Str(code.RemoteId, cw.peerID.Str()).Record()
 			}
 			close(cw.done)
 			return

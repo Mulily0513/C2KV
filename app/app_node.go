@@ -58,15 +58,14 @@ func StartAppNode(localId uint64, peers []config.Peer, proposeC chan []byte, con
 
 func (an *AppNode) servePeerRaft() {
 	an.transport = &transport.Transport{
-		LocalID:   types.ID(an.localId),
-		ClusterID: 0x1000,
-		Raft:      an,
-		ErrorC:    make(chan error),
-		Peers:     make(map[types.ID]transport.Peer),
-		StopC:     make(chan struct{}),
+		LocalID:      types.ID(an.localId),
+		RaftOperator: an,
+		ErrorC:       make(chan error),
+		Peers:        make(map[types.ID]transport.Peer),
+		StopC:        make(chan struct{}),
 	}
 
-	go an.transport.ListenPeerAttachConn(an.localIp)
+	go an.transport.ListenPeer(an.localIp)
 
 	for _, peer := range an.peers {
 		an.transport.AddPeer(types.ID(peer.Id), peer.IAddr)
@@ -159,10 +158,6 @@ func (an *AppNode) applyCommittedEnts(ents []pb.Entry) (err error) {
 				an.transport.AddPeer(types.ID(cc.NodeID), []string{string(cc.Context)})
 			}*/
 			case pb.ConfChangeRemoveNode:
-				if cc.NodeID == uint64(an.localId) {
-					return
-				}
-				an.transport.RemovePeer(types.ID(cc.NodeID))
 			}
 		}
 	}
@@ -196,13 +191,9 @@ func (an *AppNode) Process(m *pb.Message) error {
 
 func (an *AppNode) ReportUnreachable(id uint64) { an.raftNode.ReportUnreachable(id) }
 
-func (an *AppNode) ReportSnapshotStatus(id uint64, status raft.SnapshotStatus) {
-	an.raftNode.ReportSnapshot(id, status)
-}
-
 // 关闭Raft
 func (an *AppNode) stop() {
-	an.transport.Stop()
+	//an.transport.Stop()
 	an.raftNode.Stop()
 	close(an.proposeC)
 	close(an.confChangeC)

@@ -6,9 +6,8 @@ import (
 	"github.com/ColdToo/Cold2DB/code"
 	"github.com/ColdToo/Cold2DB/log"
 	"github.com/ColdToo/Cold2DB/pb"
-	"github.com/ColdToo/Cold2DB/raft"
 	types "github.com/ColdToo/Cold2DB/transport/types"
-	"io"
+	"net"
 	"sync"
 	"time"
 )
@@ -29,25 +28,20 @@ const (
 type Peer interface {
 	Send(m pb.Message)
 
-	AttachConn(conn io.WriteCloser)
-
-	ActiveSince() time.Time
-
-	Stop()
+	AttachConn(conn net.Conn)
 }
 
 type peer struct {
-	localID  types.ID
-	remoteID types.ID
+	localId  types.ID
+	remoteId types.ID
 	peerIp   string
 
-	raft         RaftTransport
+	raft         RaftOperator
 	status       *peerStatus
 	streamWriter *streamWriter
 	streamReader *streamReader
 
 	recvC chan *pb.Message //从Stream消息通道中读取到消息之后，会通过该通道将消息交给Raft接口，然后由它返回给底层etcd-raft模块进行处理
-	propC chan *pb.Message //从Stream消息通道中读取到MsgProp类型的消息之后，会通过该通道将MsgApp消息交给Raft接口，然后由它返回给底层的etcd-raft模块进行处理
 
 	mu     sync.Mutex
 	paused bool
@@ -79,48 +73,20 @@ func (p *peer) Send(m pb.Message) {
 	select {
 	case writeC <- m:
 	default:
-		if isMsgSnap(m) {
-			p.raft.ReportSnapshotStatus(m.To, raft.SnapshotFailure)
-		}
 		if p.status.isActive() {
 			log.Warn(
 				"dropped internal Raft message since sending buffer is full (overloaded network)").
 				Str("message-type", m.Type.String()).
-				Str("local-member-id", p.localID.Str()).
+				Str("local-member-id", p.localId.Str()).
 				Str("from", types.ID(m.From).Str()).
-				Str("remote-peer-id", p.remoteID.Str()).
+				Str("remote-peer-id", p.remoteId.Str()).
 				Bool("remote-peer-active", p.status.isActive()).Record()
 		}
 	}
 }
 
-func (p *peer) AttachConn(conn io.WriteCloser) {
+func (p *peer) AttachConn(conn net.Conn) {
 	p.streamWriter.connC <- conn
-}
-
-func (p *peer) ActiveSince() time.Time { return p.status.activeSince() }
-
-func (p *peer) Stop() {
-	close(p.stopc)
-	p.streamWriter.stop()
-	p.streamReader.stop()
-	log.Info("stopped remote peer").Str("remote-peer-id", p.remoteID.Str())
-}
-
-func (p *peer) Pause() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.paused = true
-	p.streamWriter.pause()
-	p.streamReader.pause()
-}
-
-func (p *peer) Resume() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.paused = false
-	//p.streamWriter.resume()
-	p.streamReader.resume()
 }
 
 type failureType struct {
