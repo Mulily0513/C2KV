@@ -14,10 +14,11 @@ import (
 )
 
 type AppNode struct {
-	localId   uint64
-	localIp   string
-	peers     []config.Peer
-	monitorKV map[int64]chan struct{}
+	localId    uint64
+	localIAddr string
+	localEAddr string
+	peers      []config.Peer
+	monitorKV  map[int64]chan struct{}
 
 	raftNode  raft.Node
 	transport transport.Transporter
@@ -29,11 +30,11 @@ type AppNode struct {
 }
 
 func StartAppNode(localId uint64, peers []config.Peer, proposeC chan []byte, confChangeC chan pb.ConfChange,
-	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, localIp string, monitorKV map[int64]chan struct{}) {
+	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, localIAddr string, monitorKV map[int64]chan struct{}) {
 	var err error
 	an := &AppNode{
 		localId:     localId,
-		localIp:     localIp,
+		localIAddr:  localIAddr,
 		peers:       peers,
 		proposeC:    proposeC,
 		confChangeC: confChangeC,
@@ -58,14 +59,14 @@ func StartAppNode(localId uint64, peers []config.Peer, proposeC chan []byte, con
 
 func (an *AppNode) servePeerRaft() {
 	an.transport = &transport.Transport{
-		LocalID:      types.ID(an.localId),
+		LocalId:      types.ID(an.localId),
+		LocalIAddr:   an.localIAddr,
 		RaftOperator: an,
-		ErrorC:       make(chan error),
 		Peers:        make(map[types.ID]transport.Peer),
 		StopC:        make(chan struct{}),
 	}
 
-	go an.transport.ListenPeer(an.localIp)
+	go an.transport.ListenPeer(an.localIAddr)
 
 	for _, peer := range an.peers {
 		an.transport.AddPeer(types.ID(peer.Id), peer.IAddr)
@@ -193,7 +194,7 @@ func (an *AppNode) ReportUnreachable(id uint64) { an.raftNode.ReportUnreachable(
 
 // 关闭Raft
 func (an *AppNode) stop() {
-	//an.transport.Stop()
+	an.transport.Stop()
 	an.raftNode.Stop()
 	close(an.proposeC)
 	close(an.confChangeC)

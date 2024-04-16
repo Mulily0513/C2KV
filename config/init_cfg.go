@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/ColdToo/Cold2DB/log"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 	"strings"
@@ -29,14 +30,11 @@ func InitConfig() {
 	}
 	Conf = new(Config)
 	if err = Viper.Unmarshal(Conf); err != nil {
-		fmt.Println(err)
+		log.Errorf("", err)
 	}
-
 	Viper.WatchConfig()
 	Viper.OnConfigChange(func(e fsnotify.Event) {
-		fmt.Println("config file changed:", e.Name)
 		if err = Viper.Unmarshal(&Config{}); err != nil {
-			fmt.Println(err)
 		}
 	})
 }

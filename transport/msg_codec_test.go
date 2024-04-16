@@ -71,7 +71,7 @@ func TestDataPack(t *testing.T) {
 			//处理客户端请求
 			go func(conn net.Conn) {
 				for {
-					dec := &messageDecoderAndReader{conn}
+					dec := &msgDecoderAndReader{conn}
 					pbmsg, err := dec.decodeAndRead()
 					if err != nil {
 						t.Log(err)
@@ -97,7 +97,7 @@ func TestDataPack(t *testing.T) {
 			return
 		}
 
-		enc := &messageEncoderAndWriter{conn}
+		enc := &msgEncoderAndWriter{conn}
 
 		enc.encodeAndWrite(message1)
 		enc.encodeAndWrite(message2)

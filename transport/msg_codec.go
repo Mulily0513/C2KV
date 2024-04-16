@@ -2,7 +2,9 @@ package transport
 
 import (
 	"encoding/binary"
+	"github.com/ColdToo/Cold2DB/log"
 	"github.com/ColdToo/Cold2DB/pb"
+	"io"
 	"net"
 )
 
@@ -10,26 +12,28 @@ type msgEncoderAndWriter struct {
 	w net.Conn
 }
 
-func (enc *msgEncoderAndWriter) encodeAndWrite(m pb.Message) error {
-	b, _ := m.Marshal()
-	_, err := enc.w.Write(newPackage(DefaultId, b).marshal())
+func (enc *msgEncoderAndWriter) encodeAndWrite(m *pb.Message) (int, error) {
+	b, err := m.Marshal()
 	if err != nil {
-		return err
+		log.Panicf("marshal failed:%v", err)
 	}
-	return nil
+	return enc.w.Write(newPackage(DefaultId, b).marshal())
 }
 
 type msgDecoderAndReader struct {
 	r net.Conn
 }
 
-func (dec *msgDecoderAndReader) decodeAndRead() (pb.Message, error) {
-	var m pb.Message
-	pkg, err := unmarshalPkg(dec.r)
-	if err != nil {
-		return pb.Message{}, err
+func (dec *msgDecoderAndReader) decodeAndRead() (*pb.Message, error) {
+	var m *pb.Message
+	pkg, err := dec.unmarshalPkg()
+	if err != nil && err != io.EOF {
+		return nil, err
 	}
-	return m, m.Unmarshal(pkg.Data)
+	if err = m.Unmarshal(pkg.Data); err != nil {
+		log.Panicf("unmarshal failed:%v", err)
+	}
+	return m, nil
 }
 
 const (
@@ -61,16 +65,15 @@ func (pkg *Package) marshal() []byte {
 	return buf
 }
 
-func unmarshalPkg(rc net.Conn) (pkg Package, err error) {
+func (dec *msgDecoderAndReader) unmarshalPkg() (pkg Package, err error) {
 	headData := make([]byte, HeaderLength)
-	if _, err = rc.Read(headData); err != nil {
+	if _, err = dec.r.Read(headData); err != nil {
 		return pkg, err
 	}
 	pkg.Id = headData[zero]
 	pkg.DataLen = binary.LittleEndian.Uint32(headData[IDLength:HeaderLength])
 	pkg.Data = make([]byte, pkg.DataLen)
-
-	if _, err = rc.Read(pkg.Data); err != nil {
+	if _, err = dec.r.Read(pkg.Data); err != nil {
 		return
 	}
 	return
