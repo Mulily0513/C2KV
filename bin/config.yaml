@@ -8,35 +8,27 @@ zapConf:
   stacktrace-key: stacktrace
   log-in-console: true
 dbConfig:
-  dbPath: "/Users/hlhf/GolandProjects/Cold2DB/c2db"
+  dbPath: "./c2kv"
+  walConfig:
+    walDirPath: "./c2kv/wal"
   memConfig:
     memtableSize: 2048
     memtableNums: 10
-    memSpaceWaitTimeout: 1
-    walDirPath: "/Users/hlhf/GolandProjects/Cold2DB/c2db/wal"
-    walSync: true
-    walMMap: true
-    indexerDir:
-    indexerType: 0
   valueLogConfig:
-    valueLogDir: "/Users/hlhf/GolandProjects/Cold2DB/c2db/vlog"
-    valueLogFileSize: 0
-    valueLogMmap: false
+    valueLogDir: "./c2kv/vlog"
   indexConfig:
-    indexerDir: "/Users/hlhf/GolandProjects/Cold2DB/c2db/index"
-    indexerType: 0
-  hardStateLogConfig:
-    hardStateLogDir: "/Users/hlhf/GolandProjects/c2dbDB/raft"
+    indexDir: "./c2kv/vlog/index"
 raftConfig:
   electionTick: 100
   heartbeatTick: 100
-  nodes:
-    - id: 1
-      eAddr: 127.0.0.1:2345
-      iAddr: 127.0.0.1:7878
-    - id: 2
-      eAddr: 172.16.60.97:2345
+  eAddr: 172.16.60.96:2345
+  peers:
+    - name: "node1"
+      id  : 1
+      iAddr: 172.16.60.96:7878
+    - name: "node2"
+      id  : 2
       iAddr: 172.16.60.97:7878
-    - id: 3
-      eAddr: 172.16.60.98:2345
+    - name: "node3"
+      id  : 3
       iAddr: 172.16.60.98:7878

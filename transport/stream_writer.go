@@ -13,9 +13,10 @@ const (
 )
 
 type streamWriter struct {
-	localID types.ID
-	peerID  types.ID
-	peerIp  string
+	localId    types.ID
+	peerId     types.ID
+	localIAddr string
+	peerIAddr  string
 
 	enc     *msgEncoderAndWriter
 	msgC    chan *pb.Message //Peer会将待发送的消息写入到该通道，streamWriter则从该通道中读取消息并发送出去
@@ -23,14 +24,15 @@ type streamWriter struct {
 	netErrC chan error
 }
 
-func startStreamWriter(localId, peerId types.ID, netErrC chan error, peerIp string) *streamWriter {
+func startStreamWriter(localId, peerId types.ID, peerIAddr, localIAddr string, netErrC chan error) *streamWriter {
 	w := &streamWriter{
-		localID: localId,
-		peerID:  peerId,
-		peerIp:  peerIp,
-		msgC:    make(chan *pb.Message, streamBufSize),
-		connC:   make(chan net.Conn),
-		netErrC: netErrC,
+		localId:    localId,
+		peerId:     peerId,
+		localIAddr: localIAddr,
+		peerIAddr:  peerIAddr,
+		msgC:       make(chan *pb.Message, streamBufSize),
+		connC:      make(chan net.Conn),
+		netErrC:    netErrC,
 	}
 	go w.run()
 	return w
@@ -38,21 +40,20 @@ func startStreamWriter(localId, peerId types.ID, netErrC chan error, peerIp stri
 
 func (cw *streamWriter) run() {
 	var msgC chan *pb.Message
-	log.Info("started stream writer run").Str(code.LocalId, cw.localID.Str()).Str(code.RemoteId, cw.peerID.Str()).Str(code.RemoteIp, cw.peerIp).Record()
+	log.Info("started stream writer run").Str(code.LocalIP, cw.localIAddr).Str(code.RemoteId, cw.peerID.Str()).Str(code.RemoteIp, cw.peerIp).Record()
 	for {
 		select {
 		case m := <-msgC:
-			_, err := cw.enc.encodeAndWrite(m)
-			if err != nil {
+			if _, err := cw.enc.encodeAndWrite(m); err != nil {
 				cw.netErrC <- err
-				log.Error("lost TCP streaming connection with remote peer").Str(code.LocalId, cw.localID.Str()).Str(code.RemoteId, cw.peerID.Str()).Record()
+				log.Error("lost TCP streaming connection with remote peer").Str(code.LocalId, cw.localIAddr).Str(code.RemoteId, cw.peerID.Str()).Record()
 				cw.close()
 			}
 		case conn := <-cw.connC:
-			//todo 接收到新链接时需要断开旧的链接?
+			cw.close()
 			cw.enc = &msgEncoderAndWriter{conn}
 			msgC = cw.msgC
-			log.Info("established TCP streaming connection with remote peer").Str(code.LocalId, cw.localID.Str()).Str(code.RemoteId, cw.peerID.Str()).Record()
+			log.Info("established TCP streaming connection with remote peer").Str(code.LocalId, cw.localIAddr).Str(code.RemoteId, cw.peerID.Str()).Record()
 		}
 	}
 }

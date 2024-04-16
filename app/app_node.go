@@ -29,8 +29,8 @@ type AppNode struct {
 	kvServStopC chan struct{}      // 关闭http服务器的信号 channel
 }
 
-func StartAppNode(localId uint64, peers []config.Peer, proposeC chan []byte, confChangeC chan pb.ConfChange,
-	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, localIAddr string, monitorKV map[int64]chan struct{}) {
+func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, proposeC chan []byte, confChangeC chan pb.ConfChange,
+	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, monitorKV map[int64]chan struct{}) {
 	var err error
 	an := &AppNode{
 		localId:     localId,

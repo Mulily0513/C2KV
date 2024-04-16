@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"github.com/ColdToo/Cold2DB/config"
 	"github.com/ColdToo/Cold2DB/db"
 	"github.com/ColdToo/Cold2DB/log"
@@ -8,18 +9,22 @@ import (
 )
 
 func main() {
-	config.InitConfig()
-	localIAddr, localId, nodes := config.GetLocalInfo()
-	raftConfig := config.GetRaftConf()
+	var cfgPath string
+	flag.StringVar(&cfgPath, "cfg", "./config.yaml", "c2kv config path")
+	flag.Parse()
+	config.InitConfig(cfgPath)
 	log.InitLog(config.GetZapConf())
+	raftConfig := config.GetRaftConf()
 	kvStorage := db.OpenKVStorage(config.GetDBConf())
 
 	proposeC := make(chan []byte, raftConfig.RequestLimit)
 	confChangeC := make(chan pb.ConfChange)
+
 	kvServiceStopC := make(chan struct{})
 	monitorKV := make(map[int64]chan struct{})
 
-	kvStore := NewKVService(proposeC, confChangeC, raftConfig.RequestTimeout, kvStorage, monitorKV)
-	StartAppNode(localId, nodes, proposeC, confChangeC, kvServiceStopC, kvStorage, raftConfig, localIAddr, monitorKV)
-	ServeHttpKVAPI(kvStore, localIAddr, kvServiceStopC)
+	localIAddr, localEAddr, localId, peers := config.GetLocalInfo()
+	kvStore := NewKVService(proposeC, confChangeC, raftConfig, kvStorage, monitorKV)
+	StartAppNode(localId, localIAddr, peers, proposeC, confChangeC, kvServiceStopC, kvStorage, raftConfig, monitorKV)
+	ServeKVAPI(kvStore, localEAddr, kvServiceStopC)
 }

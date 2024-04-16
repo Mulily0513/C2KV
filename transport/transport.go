@@ -64,16 +64,16 @@ func (t *Transport) ListenPeer(addr string) {
 	}
 }
 
-func (t *Transport) AddPeer(peerID types.ID, peerAddr string) {
+func (t *Transport) AddPeer(peerID types.ID, peerIAddr string) {
 	receiveC := make(chan *pb.Message, recvBufSize)
 	netErrC := make(chan error, 1)
-	streamReader := startStreamReader(t.LocalId, peerID, netErrC, receiveC, peerAddr)
-	streamWriter := startStreamWriter(t.LocalId, peerID, netErrC, peerAddr)
+	streamReader := startStreamReader(t.LocalId, peerID, peerIAddr, t.LocalIAddr, netErrC, receiveC)
+	streamWriter := startStreamWriter(t.LocalId, peerID, peerIAddr, t.LocalIAddr, netErrC)
 	p := &peer{
 		localId:      t.LocalId,
 		localIAddr:   t.LocalIAddr,
 		peerId:       peerID,
-		peerAddr:     peerAddr,
+		peerAddr:     peerIAddr,
 		raft:         t.RaftOperator,
 		streamWriter: streamWriter,
 		streamReader: streamReader,

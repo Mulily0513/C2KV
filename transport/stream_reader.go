@@ -8,22 +8,23 @@ import (
 )
 
 type streamReader struct {
-	localId  types.ID
-	peerId   types.ID
-	peerIp   string
-	enc      *msgDecoderAndReader
-	receiveC chan *pb.Message //从peer中获取对端节点发送过来的消息，然后交给raft算法层进行处理，只接收非prop信息
-	netErrC  chan error
-	ErrorC   chan error
+	localId    types.ID
+	peerId     types.ID
+	localIAddr string
+	peerIAddr  string
+	enc        *msgDecoderAndReader
+	receiveC   chan *pb.Message
+	netErrC    chan error
 }
 
-func startStreamReader(localID, peerId types.ID, netErrC chan error, receiveC chan *pb.Message, peerIp string) *streamReader {
+func startStreamReader(localID, peerId types.ID, peerIAddr, localIAddr string, netErrC chan error, receiveC chan *pb.Message) *streamReader {
 	r := &streamReader{
-		localId:  localID,
-		peerId:   peerId,
-		peerIp:   peerIp,
-		receiveC: receiveC,
-		netErrC:  netErrC,
+		localId:    localID,
+		localIAddr: localIAddr,
+		peerId:     peerId,
+		peerIAddr:  peerIAddr,
+		receiveC:   receiveC,
+		netErrC:    netErrC,
 	}
 	go r.run()
 	return r
@@ -51,7 +52,7 @@ func (cr *streamReader) run() {
 func (cr *streamReader) dial() *msgDecoderAndReader {
 	var count int
 	for {
-		Conn, err := net.Dial("tcp", cr.peerIp)
+		Conn, err := net.Dial("tcp", cr.peerIAddr)
 		if err != nil {
 			log.Errorf("start dial remote peer from %s to %s failed %v", cr.localId.Str(), cr.peerId.Str(), err)
 			//todo 一直重连不成功

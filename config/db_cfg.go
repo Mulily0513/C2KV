@@ -1,6 +1,6 @@
 package config
 
-type DBConfig struct {
+type DbConfig struct {
 	DBPath string
 
 	MemConfig MemConfig
@@ -8,19 +8,17 @@ type DBConfig struct {
 	ValueLogConfig ValueLogConfig
 
 	WalConfig WalConfig
-
-	// Default value is 5.
-	MemTableNums int
-
-	// pre allocate  default value is 1
-	MemTablePipeSize int
 }
 
 type MemConfig struct {
+	MemTableNums int
+
+	MemTablePipeSize int
+
 	// Default value is 64MB. MB Unit
 	MemTableSize int64
 
-	// 写入memTable并发度
+	// memTable的写入并发度
 	Concurrency int
 }
 

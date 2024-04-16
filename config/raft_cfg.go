@@ -15,7 +15,7 @@ type RaftConfig struct {
 	HeartbeatTick  int
 	RequestLimit   int
 	RequestTimeout int
-	Peers          []Peer `yaml:"nodes"`
+	Peers          []Peer `yaml:"peers"`
 }
 
 type Peer struct {

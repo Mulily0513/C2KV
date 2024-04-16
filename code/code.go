@@ -6,7 +6,8 @@ const (
 	NodeInIErr = "NodeInIErr"
 
 	ClusterId   = "cluster-id"
-	LocalId     = "local-member-id"
+	LocalId     = "local-id"
+	LocalIP     = "local-ip"
 	RemoteId    = "remote-peer-id"
 	RemoteIp    = "remote-peer-ip"
 	RemoteUrls  = "remote-peer-urls"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/ColdToo/Cold2DB/config"
 	"github.com/ColdToo/Cold2DB/db"
 	"github.com/ColdToo/Cold2DB/db/marshal"
 	"github.com/ColdToo/Cold2DB/pb"
@@ -22,12 +23,12 @@ type KvService struct {
 	ReqTimeout  time.Duration
 }
 
-func NewKVService(proposeC chan<- []byte, confChangeC chan pb.ConfChange, requestTimeOut int, kvStorage db.Storage, monitorKV map[int64]chan struct{}) *KvService {
+func NewKVService(proposeC chan<- []byte, confChangeC chan pb.ConfChange, raftConfig *config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}) *KvService {
 	s := &KvService{
 		storage:     kvStorage,
 		proposeC:    proposeC,
-		monitorKV:   make(map[int64]chan struct{}),
-		ReqTimeout:  time.Duration(requestTimeOut) * time.Second,
+		monitorKV:   monitorKV,
+		ReqTimeout:  time.Duration(raftConfig.RequestTimeout) * time.Second,
 		confChangeC: confChangeC,
 	}
 	return s

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"github.com/ColdToo/Cold2DB/log"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -9,56 +8,54 @@ import (
 )
 
 var (
-	Viper *viper.Viper
-	Conf  *Config
+	vip  = viper.New()
+	conf = new(config)
 )
 
-type Config struct {
-	ZapConf    *ZapConfig
-	DBConfig   *DBConfig
-	RaftConfig *RaftConfig
+type config struct {
+	zapConf  *ZapConfig
+	dbConf   *DbConfig
+	raftConf *RaftConfig
 }
 
-func InitConfig() {
-	defaultConfigPath := "/Users/hlhf/GolandProjects/Cold2DB/bin/config.yaml"
-	Viper = viper.New()
-	Viper.SetConfigFile(defaultConfigPath)
-	Viper.SetConfigType("yaml")
-	err := Viper.ReadInConfig()
-	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+func InitConfig(cfgPath string) {
+	var err error
+	vip.SetConfigFile(cfgPath)
+	vip.SetConfigType("yaml")
+	if err = viper.ReadInConfig(); err != nil {
+		panic(err)
 	}
-	Conf = new(Config)
-	if err = Viper.Unmarshal(Conf); err != nil {
+	if err = viper.Unmarshal(cfgPath); err != nil {
 		log.Errorf("", err)
 	}
-	Viper.WatchConfig()
-	Viper.OnConfigChange(func(e fsnotify.Event) {
-		if err = Viper.Unmarshal(&Config{}); err != nil {
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		if err = viper.Unmarshal(&config{}); err != nil {
 		}
 	})
 }
 
 func GetZapConf() *ZapConfig {
-	return Conf.ZapConf
+	return conf.zapConf
 }
 
 func GetRaftConf() *RaftConfig {
-	return Conf.RaftConfig
+	return conf.raftConf
 }
 
-func GetDBConf() *DBConfig {
-	return Conf.DBConfig
+func GetDBConf() *DbConfig {
+	return conf.dbConf
 }
 
-func GetLocalInfo() (localIpAddr string, localId uint64, peers []Peer) {
-	raftConf := Conf.RaftConfig
-	for _, node := range raftConf.Peers {
-		if strings.Contains(node.EAddr, "127.0.0.1") && strings.Contains(node.IAddr, "127.0.0.1") {
-			localId = node.Id
-			localIpAddr = node.EAddr
+func GetLocalInfo() (localIAddr string, localEAddr string, localId uint64, peers []Peer) {
+	raftConf := conf.raftConf
+	for _, peer := range raftConf.Peers {
+		if strings.Split(peer.EAddr, ":")[0] == strings.Split(peer.IAddr, ":")[0] {
+			localId = peer.Id
+			localIAddr = peer.IAddr
+			localIAddr = peer.EAddr
 		}
-		peers = append(peers, node)
+		peers = append(peers, peer)
 	}
 	return
 }

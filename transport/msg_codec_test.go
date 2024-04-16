@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	message1 = pb.Message{
+	message1 = &pb.Message{
 		Type:       pb.MsgProp,
 		To:         1,
 		From:       2,
@@ -30,7 +30,7 @@ var (
 		},
 	}
 
-	message2 = pb.Message{
+	message2 = &pb.Message{
 		Type:       pb.MsgProp,
 		To:         11,
 		From:       21,
