@@ -80,9 +80,9 @@ func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 		log.Panicf("db config check failed", err)
 	}
 	C2 = new(C2KV)
-	memFlushC := make(chan *MemTable, dbCfg.MemTableNums)
-	C2.memTablePipe = make(chan *MemTable, dbCfg.MemTablePipeSize)
-	C2.immtableQ = NewMemTableQueue(dbCfg.MemTableNums)
+	memFlushC := make(chan *MemTable, dbCfg.MemConfig.MemTableNums)
+	C2.memTablePipe = make(chan *MemTable, dbCfg.MemConfig.MemTablePipeSize)
+	C2.immtableQ = NewMemTableQueue(dbCfg.MemConfig.MemTableNums)
 	C2.activeMem = NewMemTable(dbCfg.MemConfig)
 	C2.memFlushC = memFlushC
 	C2.entries = make([]pb.Entry, 0)

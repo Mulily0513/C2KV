@@ -1,7 +1,6 @@
 package config
 
 import (
-	"github.com/ColdToo/Cold2DB/log"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 	"strings"
@@ -14,7 +13,7 @@ var (
 
 type config struct {
 	zapConf  *ZapConfig
-	dbConf   *DbConfig
+	dbConf   *DBConfig
 	raftConf *RaftConfig
 }
 
@@ -26,7 +25,7 @@ func InitConfig(cfgPath string) {
 		panic(err)
 	}
 	if err = viper.Unmarshal(cfgPath); err != nil {
-		log.Errorf("", err)
+		panic(err)
 	}
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
@@ -43,7 +42,7 @@ func GetRaftConf() *RaftConfig {
 	return conf.raftConf
 }
 
-func GetDBConf() *DbConfig {
+func GetDBConf() *DBConfig {
 	return conf.dbConf
 }
 

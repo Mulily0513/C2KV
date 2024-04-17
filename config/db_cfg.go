@@ -1,6 +1,6 @@
 package config
 
-type DbConfig struct {
+type DBConfig struct {
 	DBPath string
 
 	MemConfig MemConfig
