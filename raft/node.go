@@ -40,9 +40,7 @@ type Node interface {
 	ReadIndex(ctx context.Context, rctx []byte) error
 	// ReportUnreachable reports the given node is not reachable for the last send.
 	ReportUnreachable(id uint64)
-	// ReportSnapshot reports the status of the sent snapshot. The id is the raft ID of the follower
-	// who is to receive the snapshot, and the status is SnapshotFinish or SnapshotFailure.
-	ReportSnapshot(id uint64, status SnapshotStatus)
+
 	// Step advances the state machine using the given message. ctx.Err() will be returned, if any.
 	Step(ctx context.Context, msg pb.Message) error
 
@@ -215,11 +213,6 @@ func (rn *raftNode) ReadIndex(ctx context.Context, rctx []byte) error {
 }
 
 func (rn *raftNode) ReportUnreachable(id uint64) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (rn *raftNode) ReportSnapshot(id uint64, status SnapshotStatus) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -51,17 +51,15 @@ var (
 	}
 )
 
-// 测试粘包下的编解码
+// 测试编解码
 func TestDataPack(t *testing.T) {
-	//创建socket TCP Server
-	listener, err := net.Listen("tcp", "127.0.0.1:7777")
-	if err != nil {
-		fmt.Println("server listen err:", err)
-		return
-	}
-
 	//创建服务器gotoutine，负责从客户端goroutine读取粘包的数据，然后进行解析
-	go func() {
+	go func() { //创建socket TCP Server
+		listener, err := net.Listen("tcp", "127.0.0.1:7777")
+		if err != nil {
+			fmt.Println("server listen err:", err)
+			return
+		}
 		for {
 			conn, err := listener.Accept()
 			if err != nil {

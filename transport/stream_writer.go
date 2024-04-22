@@ -40,7 +40,7 @@ func startStreamWriter(localId, peerId types.ID, peerIAddr, localIAddr string, n
 
 func (cw *streamWriter) run() {
 	var msgC chan *pb.Message
-	log.Info("started stream writer run").Str(code.LocalIP, cw.localIAddr).Str(code.RemoteId, cw.peerID.Str()).Str(code.RemoteIp, cw.peerIp).Record()
+	log.Info("started stream writer run").Str(code.LocalIP, cw.localIAddr).Str(code.RemoteId, cw.peerIAddr).Str(code.RemoteIp, cw.peerIp).Record()
 	for {
 		select {
 		case m := <-msgC:
@@ -61,7 +61,7 @@ func (cw *streamWriter) run() {
 func (cw *streamWriter) close() {
 	if cw.enc != nil {
 		if err := cw.enc.w.Close(); err != nil {
-			log.Error("failed to close remote peer connection").Str("local-member-id", cw.localI.Str()).Str("remote-peer-id", cr.peerId.Str()).Err("", err).Record()
+			log.Error("failed to close remote peer connection").Str("local-member-id", cw.peerIAddr).Str("remote-peer-id", cr.peerId.Str()).Err("", err).Record()
 		}
 	}
 	cw.enc = nil
