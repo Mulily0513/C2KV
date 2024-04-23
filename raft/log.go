@@ -21,10 +21,9 @@ var ErrUnavailable = errors.New("requested entry at index is unavailable")
 var ErrSnapshotTemporarilyUnavailable = errors.New("snapshot is temporarily unavailable")
 
 //  log structure
-//
-//  ......persist................ applied/first.........committed.........................stabled..................last
-//	--------|--------mem-table----------|--------------------------memory slice-----------------------------------|
-//	--------|--------------------------wal(stable entry)-------------------------------------|
+//  ......persist................applied|first.................committed.................stabled....................last
+//	--------|--------mem-table----------|--------------------storage slice------------------|-----raft log slice------|
+//	--vlog--|--------------------------wal--------------------------------------------------|
 
 type raftLog struct {
 	//已经应用到memtable中最后一条日志的index
@@ -45,16 +44,11 @@ type raftLog struct {
 }
 
 func newRaftLog(storage db.Storage) (r *raftLog) {
-	r = &raftLog{
-		storage: storage,
-	}
-	r.stabled = storage.LastIndex()
-	r.applied = storage.FirstIndex() - 1
+	r = &raftLog{storage: storage}
 	r.unstableEnts = make([]pb.Entry, 0)
-	if storage.FirstIndex() == 0 {
-		r.applied = 0
-	}
+	r.stabled = storage.StableIndex()
 	r.offset = r.stabled + 1
+	r.applied = storage.AppliedIndex()
 	return
 }
 
@@ -73,7 +67,7 @@ func (l *raftLog) lastIndex() uint64 {
 	if length := len(l.unstableEnts); length != 0 {
 		return l.offset + uint64(length) - 1
 	}
-	return l.storage.LastIndex()
+	return l.storage.StableIndex()
 }
 
 func (l *raftLog) lastTerm() uint64 {

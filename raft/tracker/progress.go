@@ -44,7 +44,6 @@ type Progress struct {
 	// ProbeSent is used while this follower is in StateProbe. When ProbeSent is
 	// true, raft should pause sending replication message to this peer until
 	// ProbeSent is reset. See ProbeAcked() and IsPaused().
-	// 是否要以probe的方式发送数据
 	ProbeSent bool
 }
 
@@ -171,6 +170,8 @@ func (pr *Progress) IsPaused() bool {
 		return pr.ProbeSent
 	case StateSnapshot:
 		return true
+	case StateReplicate:
+		return false
 	default:
 		panic("unexpected state")
 	}

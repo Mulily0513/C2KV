@@ -35,6 +35,20 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 	return m.recorder
 }
 
+// AppliedIndex mocks base method.
+func (m *MockStorage) AppliedIndex() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppliedIndex")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// AppliedIndex indicates an expected call of AppliedIndex.
+func (mr *MockStorageMockRecorder) AppliedIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppliedIndex", reflect.TypeOf((*MockStorage)(nil).AppliedIndex))
+}
+
 // Apply mocks base method.
 func (m *MockStorage) Apply(kvs []*marshal.KV) error {
 	m.ctrl.T.Helper()
@@ -106,33 +120,18 @@ func (mr *MockStorageMockRecorder) Get(key interface{}) *gomock.Call {
 }
 
 // InitialState mocks base method.
-func (m *MockStorage) InitialState() (pb.HardState, pb.ConfState, error) {
+func (m *MockStorage) InitialState() (pb.HardState, pb.ConfState) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InitialState")
 	ret0, _ := ret[0].(pb.HardState)
 	ret1, _ := ret[1].(pb.ConfState)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	return ret0, ret1
 }
 
 // InitialState indicates an expected call of InitialState.
 func (mr *MockStorageMockRecorder) InitialState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitialState", reflect.TypeOf((*MockStorage)(nil).InitialState))
-}
-
-// LastIndex mocks base method.
-func (m *MockStorage) LastIndex() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LastIndex")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// LastIndex indicates an expected call of LastIndex.
-func (mr *MockStorageMockRecorder) LastIndex() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastIndex", reflect.TypeOf((*MockStorage)(nil).LastIndex))
 }
 
 // PersistHardState mocks base method.
@@ -178,19 +177,18 @@ func (mr *MockStorageMockRecorder) Scan(lowKey, highKey interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockStorage)(nil).Scan), lowKey, highKey)
 }
 
-// Snapshot mocks base method.
-func (m *MockStorage) Snapshot() (pb.Snapshot, error) {
+// StableIndex mocks base method.
+func (m *MockStorage) StableIndex() uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot")
-	ret0, _ := ret[0].(pb.Snapshot)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "StableIndex")
+	ret0, _ := ret[0].(uint64)
+	return ret0
 }
 
-// Snapshot indicates an expected call of Snapshot.
-func (mr *MockStorageMockRecorder) Snapshot() *gomock.Call {
+// StableIndex indicates an expected call of StableIndex.
+func (mr *MockStorageMockRecorder) StableIndex() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockStorage)(nil).Snapshot))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StableIndex", reflect.TypeOf((*MockStorage)(nil).StableIndex))
 }
 
 // Term mocks base method.

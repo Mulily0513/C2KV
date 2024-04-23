@@ -31,7 +31,6 @@ type AppNode struct {
 
 func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, proposeC chan []byte, confChangeC chan pb.ConfChange,
 	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, monitorKV map[int64]chan struct{}) {
-	var err error
 	an := &AppNode{
 		localId:     localId,
 		localIAddr:  localIAddr,
@@ -46,9 +45,7 @@ func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, propos
 	// 完成当前节点与集群中其他节点之间的网络连接
 	an.servePeerRaft()
 	// 启动Raft
-	if an.raftNode, err = raft.StartRaftNode(raftConfig, kvStorage); err != nil {
-		log.Panicf("start raft node err", err)
-	}
+	an.raftNode = raft.StartRaftNode(raftConfig, kvStorage)
 	// 启动一个goroutine,处理appNode与raftNode的交互
 	go an.serveRaftNode()
 	// 启动一个goroutine,处理客户端请求的节点变更以及日志提议
@@ -77,30 +74,27 @@ func (an *AppNode) serveRaftNode() {
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
+	var err error
 	for {
 		select {
 		case <-ticker.C:
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
-			log.Infof("start handle ready %v", rd.HardState)
-
+			log.Debug("start handle ready").Record()
 			if len(rd.UnstableEntries) > 0 {
-				err := an.kvStorage.PersistUnstableEnts(rd.UnstableEntries)
-				if err != nil {
+				if err = an.kvStorage.PersistUnstableEnts(rd.UnstableEntries); err != nil {
 					log.Errorf("save entries failed", err)
 				}
 			}
 
 			if !raft.IsEmptyHardState(rd.HardState) {
-				err := an.kvStorage.PersistHardState(rd.HardState, rd.ConfState)
-				if err != nil {
+				if err = an.kvStorage.PersistHardState(rd.HardState, rd.ConfState); err != nil {
 					log.Errorf("", err)
 				}
 			}
 
 			if len(rd.CommittedEntries) > 0 {
-				err := an.applyCommittedEnts(rd.CommittedEntries)
-				if err != nil {
+				if err = an.applyCommittedEnts(rd.CommittedEntries); err != nil {
 					log.Errorf("apply entries failed", err)
 				}
 			}
@@ -111,27 +105,17 @@ func (an *AppNode) serveRaftNode() {
 
 			//通知raftNode本轮ready已经处理完可以进行下一轮处理
 			an.raftNode.Advance()
-			log.Infof("handle ready success %v", rd.HardState)
+			log.Debug("handle ready success").Record()
 		}
 	}
 }
 
 func (an *AppNode) servePropCAndConfC() {
-	confChangeCount := uint64(0)
-
-	for an.proposeC != nil && an.confChangeC != nil {
+	for an.proposeC != nil {
 		select {
 		case prop := <-an.proposeC:
-			err := an.raftNode.Propose(context.TODO(), prop)
-			if err != nil {
+			if err := an.raftNode.Propose(context.TODO(), prop); err != nil {
 				log.Errorf("propose err", err)
-			}
-		case cc := <-an.confChangeC:
-			confChangeCount++
-			cc.ID = confChangeCount
-			err := an.raftNode.ProposeConfChange(context.TODO(), cc)
-			if err != nil {
-				log.Errorf("propose conf err", err)
 			}
 		}
 	}
@@ -148,18 +132,6 @@ func (an *AppNode) applyCommittedEnts(ents []pb.Entry) (err error) {
 				continue
 			}
 			entries = append(entries, entry)
-
-		case pb.EntryConfChange:
-			var cc pb.ConfChange
-			cc.Unmarshal(ents[i].Data)
-			an.raftNode.ApplyConfChange(cc)
-			switch cc.Type {
-			/*case pb.ConfChangeAddNode:
-			if len(cc.Context) > 0 {
-				an.transport.AddPeer(types.ID(cc.NodeID), []string{string(cc.Context)})
-			}*/
-			case pb.ConfChangeRemoveNode:
-			}
 		}
 	}
 

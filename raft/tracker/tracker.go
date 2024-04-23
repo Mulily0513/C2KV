@@ -15,6 +15,7 @@
 package tracker
 
 import (
+	"fmt"
 	"github.com/ColdToo/Cold2DB/pb"
 	"github.com/ColdToo/Cold2DB/raft/quorum"
 )
@@ -38,10 +39,12 @@ func MakeProgressTracker(peers []uint64) ProgressTracker {
 			Match: 0,
 		}
 	}
+
 	voters := make(quorum.MajorityConfig)
 	for _, peer := range peers {
 		voters[peer] = struct{}{}
 	}
+
 	p := ProgressTracker{
 		Voters:   voters,
 		Votes:    map[uint64]bool{},
@@ -51,9 +54,7 @@ func MakeProgressTracker(peers []uint64) ProgressTracker {
 }
 
 func (p *ProgressTracker) ConfState() pb.ConfState {
-	return pb.ConfState{
-		Voters: p.Voters.Slice(),
-	}
+	return pb.ConfState{Voters: p.Voters.Slice()}
 }
 
 func (p *ProgressTracker) IsSingleton() bool {
@@ -78,6 +79,13 @@ func (p *ProgressTracker) Committed() uint64 {
 
 func (p *ProgressTracker) VoterNodes() []uint64 {
 	return p.Voters.Slice()
+}
+
+func (p *ProgressTracker) VoterNodesStr() (nodesStrs []string) {
+	for _, n := range p.VoterNodes() {
+		nodesStrs = append(nodesStrs, fmt.Sprintf("%x", n))
+	}
+	return
 }
 
 func (p *ProgressTracker) ResetVotes() {

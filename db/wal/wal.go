@@ -104,7 +104,7 @@ func NewWal(config config.WalConfig) (*WAL, error) {
 	return wal, nil
 }
 
-func (wal *WAL) Write(entries []pb.Entry) error {
+func (wal *WAL) Write(entries []*pb.Entry) error {
 	data := make([]byte, 0)
 	bytesCount := 0
 

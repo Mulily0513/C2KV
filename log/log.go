@@ -171,13 +171,13 @@ func (f *Fields) Record() {
 
 func getZapCores(config *config.ZapConfig) []zapcore.Core {
 	cores := make([]zapcore.Core, 0, 7)
-	for level := transportLevel(config.Level); level <= zapcore.FatalLevel; level++ {
+	for level := transLevel(config.Level); level <= zapcore.FatalLevel; level++ {
 		cores = append(cores, getEncoderCore(level, getLevelPriority(level), config))
 	}
 	return cores
 }
 
-func transportLevel(level string) zapcore.Level {
+func transLevel(level string) zapcore.Level {
 	Level := strings.ToLower(level)
 	switch Level {
 	case "debug":

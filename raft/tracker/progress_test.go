@@ -19,8 +19,6 @@ import (
 )
 
 func TestProgressString(t *testing.T) {
-	ins := NewInflights(1)
-	ins.Add(123)
 	pr := &Progress{
 		Match:           1,
 		Next:            2,
@@ -28,9 +26,8 @@ func TestProgressString(t *testing.T) {
 		PendingSnapshot: 123,
 		RecentActive:    false,
 		ProbeSent:       true,
-		Inflights:       ins,
 	}
-	const exp = `StateSnapshot match=1 next=2 learner paused pendingSnap=123 inactive inflight=1[full]`
+	const exp = `StateSnapshot match=1 next=2 paused pendingSnap=123 inactive`
 	if act := pr.String(); act != exp {
 		t.Errorf("exp: %s\nact: %s", exp, act)
 	}
@@ -54,7 +51,6 @@ func TestProgressIsPaused(t *testing.T) {
 		p := &Progress{
 			State:     tt.state,
 			ProbeSent: tt.paused,
-			Inflights: NewInflights(256),
 		}
 		if g := p.IsPaused(); g != tt.w {
 			t.Errorf("#%d: paused= %t, want %t", i, g, tt.w)
@@ -86,17 +82,17 @@ func TestProgressBecomeProbe(t *testing.T) {
 		wnext uint64
 	}{
 		{
-			&Progress{State: StateReplicate, Match: match, Next: 5, Inflights: NewInflights(256)},
+			&Progress{State: StateReplicate, Match: match, Next: 5},
 			2,
 		},
 		{
 			// snapshot finish
-			&Progress{State: StateSnapshot, Match: match, Next: 5, PendingSnapshot: 10, Inflights: NewInflights(256)},
+			&Progress{State: StateSnapshot, Match: match, Next: 5, PendingSnapshot: 10},
 			11,
 		},
 		{
 			// snapshot failure
-			&Progress{State: StateSnapshot, Match: match, Next: 5, PendingSnapshot: 0, Inflights: NewInflights(256)},
+			&Progress{State: StateSnapshot, Match: match, Next: 5, PendingSnapshot: 0},
 			2,
 		},
 	}
@@ -115,7 +111,7 @@ func TestProgressBecomeProbe(t *testing.T) {
 }
 
 func TestProgressBecomeReplicate(t *testing.T) {
-	p := &Progress{State: StateProbe, Match: 1, Next: 5, Inflights: NewInflights(256)}
+	p := &Progress{State: StateProbe, Match: 1, Next: 5}
 	p.BecomeReplicate()
 
 	if p.State != StateReplicate {
@@ -130,7 +126,7 @@ func TestProgressBecomeReplicate(t *testing.T) {
 }
 
 func TestProgressBecomeSnapshot(t *testing.T) {
-	p := &Progress{State: StateProbe, Match: 1, Next: 5, Inflights: NewInflights(256)}
+	p := &Progress{State: StateProbe, Match: 1, Next: 5}
 	p.BecomeSnapshot(10)
 
 	if p.State != StateSnapshot {
@@ -172,74 +168,6 @@ func TestProgressUpdate(t *testing.T) {
 		}
 		if p.Next != tt.wn {
 			t.Errorf("#%d: next= %d, want %d", i, p.Next, tt.wn)
-		}
-	}
-}
-
-func TestProgressMaybeDecr(t *testing.T) {
-	tests := []struct {
-		state    StateType
-		m        uint64
-		n        uint64
-		rejected uint64
-		last     uint64
-
-		w  bool
-		wn uint64
-	}{
-		{
-			// state replicate and rejected is not greater than match
-			StateReplicate, 5, 10, 5, 5, false, 10,
-		},
-		{
-			// state replicate and rejected is not greater than match
-			StateReplicate, 5, 10, 4, 4, false, 10,
-		},
-		{
-			// state replicate and rejected is greater than match
-			// directly decrease to match+1
-			StateReplicate, 5, 10, 9, 9, true, 6,
-		},
-		{
-			// next-1 != rejected is always false
-			StateProbe, 0, 0, 0, 0, false, 0,
-		},
-		{
-			// next-1 != rejected is always false
-			StateProbe, 0, 10, 5, 5, false, 10,
-		},
-		{
-			// next>1 = decremented by 1
-			StateProbe, 0, 10, 9, 9, true, 9,
-		},
-		{
-			// next>1 = decremented by 1
-			StateProbe, 0, 2, 1, 1, true, 1,
-		},
-		{
-			// next<=1 = reset to 1
-			StateProbe, 0, 1, 0, 0, true, 1,
-		},
-		{
-			// decrease to min(rejected, last+1)
-			StateProbe, 0, 10, 9, 2, true, 3,
-		},
-		{
-			// rejected < 1, reset to 1
-			StateProbe, 0, 10, 9, 0, true, 1,
-		},
-	}
-	for i, tt := range tests {
-		p := &Progress{
-			State: tt.state,
-			Match: tt.m,
-			Next:  tt.n,
-		}
-		if gm := p.Match; gm != tt.m {
-			t.Errorf("#%d: match= %d, want %d", i, gm, tt.m)
-		}
-		if gn := p.Next; gn != tt.wn {
-			t.Errorf("#%d: next= %d, want %d", i, gn, tt.wn)
 		}
 	}
 }

@@ -34,17 +34,11 @@ type rawNode struct {
 	prevHardSt pb.HardState
 }
 
-func NewRawNode(opts *raftOpts) (*rawNode, error) {
-	r, err := newRaft(opts)
-	if err != nil {
-		return nil, err
-	}
-	rn := &rawNode{
-		raft: r,
-	}
-	rn.prevSoftSt = r.softState()
-	rn.prevHardSt = r.hardState()
-	return rn, nil
+func NewRawNode(opts *raftOpts) *rawNode {
+	rn := &rawNode{raft: newRaft(opts)}
+	rn.prevSoftSt = rn.raft.softState()
+	rn.prevHardSt = rn.raft.hardState()
+	return rn
 }
 
 // Tick advances the internal logical clock by a single tick.

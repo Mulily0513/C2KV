@@ -19,16 +19,16 @@ type Storage interface {
 	Scan(lowKey []byte, highKey []byte) (kvs []*marshal.KV, err error)
 	Apply(kvs []*marshal.KV) error
 
-	PersistUnstableEnts(entries []pb.Entry) error
+	PersistUnstableEnts(entries []*pb.Entry) error
 	PersistHardState(st pb.HardState, cs pb.ConfState) error
-	// Truncate truncate index 及其之后的日志
-	Truncate(index uint64) error
-	InitialState() (pb.HardState, pb.ConfState, error)
+	InitialState() (pb.HardState, pb.ConfState)
+
 	Entries(lo, hi uint64) ([]pb.Entry, error)
 	Term(i uint64) (uint64, error)
 	FirstIndex() uint64
-	LastIndex() uint64
-	Snapshot() (pb.Snapshot, error)
+	AppliedIndex() uint64
+	StableIndex() uint64
+	Truncate(index uint64) error
 
 	Close()
 }
@@ -52,7 +52,7 @@ type C2KV struct {
 
 	sync.Mutex
 
-	entries []pb.Entry //stable raft log entries
+	entries []*pb.Entry //stable raft log entries
 }
 
 func dbCfgCheck(dbCfg *config.DBConfig) (err error) {
@@ -201,7 +201,7 @@ func (db *C2KV) restoreMemEntries() {
 
 ExitLoop:
 	for Node != nil {
-		ents := make([]pb.Entry, 0)
+		ents := make([]*pb.Entry, 0)
 		Seg := Node.Seg
 		reader := wal.NewSegmentReader(Seg)
 		for {
@@ -226,7 +226,7 @@ ExitLoop:
 				log.Panicf("read entry failed", err)
 			}
 
-			ents = append(ents, *ent)
+			ents = append(ents, ent)
 			reader.Next(header.EntrySize)
 		}
 
@@ -299,7 +299,7 @@ func (db *C2KV) maybeRotateMemTable(bytesCount int64) {
 	}
 }
 
-func (db *C2KV) PersistUnstableEnts(entries []pb.Entry) error {
+func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -355,6 +355,12 @@ func (db *C2KV) Term(i uint64) (uint64, error) {
 	return db.entries[i-offset].Term, nil
 }
 
+func (db *C2KV) AppliedIndex() uint64 {
+	db.Lock()
+	defer db.Unlock()
+	return db.firstIndex()
+}
+
 func (db *C2KV) FirstIndex() uint64 {
 	db.Lock()
 	defer db.Unlock()
@@ -365,7 +371,7 @@ func (db *C2KV) firstIndex() uint64 {
 	return db.entries[0].Index + 1
 }
 
-func (db *C2KV) LastIndex() uint64 {
+func (db *C2KV) StableIndex() uint64 {
 	db.Lock()
 	defer db.Unlock()
 	return db.lastIndex()
@@ -375,12 +381,8 @@ func (db *C2KV) lastIndex() uint64 {
 	return db.entries[uint64(len(db.entries))-1].Index
 }
 
-func (db *C2KV) Snapshot() (pb.Snapshot, error) {
-	return pb.Snapshot{}, nil
-}
-
-func (db *C2KV) InitialState() (pb.HardState, pb.ConfState, error) {
-	return pb.HardState{}, pb.ConfState{}, nil
+func (db *C2KV) InitialState() (pb.HardState, pb.ConfState) {
+	return pb.HardState{}, pb.ConfState{}
 }
 
 func (db *C2KV) Close() {

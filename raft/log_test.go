@@ -41,31 +41,34 @@ func InitLog() {
 	log.InitLog(cfg)
 }
 
-func MockSpecStorage(t *testing.T, fistIndex, lastIndex, expIdx, expTerm uint64) db.Storage {
+func MockSpecStorage(t *testing.T, appliedIndex, fistIndex, stableIndex, expIdx, expTerm uint64) db.Storage {
 	mockCtl := gomock.NewController(t)
 	storage := mocks.NewMockStorage(mockCtl)
 	storage.EXPECT().FirstIndex().Return(fistIndex).AnyTimes()
-	storage.EXPECT().LastIndex().Return(lastIndex).AnyTimes()
+	storage.EXPECT().StableIndex().Return(stableIndex).AnyTimes()
 	storage.EXPECT().Term(expIdx).Return(expTerm, nil).AnyTimes()
+	storage.EXPECT().AppliedIndex().Return(appliedIndex).AnyTimes()
 	return storage
 }
 
-func MockEntriesStorage(t *testing.T, fistIndex, lastIndex, from, to uint64, entries []pb.Entry) db.Storage {
+func MockEntriesStorage(t *testing.T, appliedIndex, fistIndex, lastIndex, from, to uint64, entries []pb.Entry) db.Storage {
 	mockCtl := gomock.NewController(t)
 	storage := mocks.NewMockStorage(mockCtl)
 	storage.EXPECT().FirstIndex().Return(fistIndex).AnyTimes()
-	storage.EXPECT().LastIndex().Return(lastIndex).AnyTimes()
+	storage.EXPECT().StableIndex().Return(lastIndex).AnyTimes()
 	storage.EXPECT().Entries(from, to).Return(entries, nil).AnyTimes()
+	storage.EXPECT().AppliedIndex().Return(appliedIndex).AnyTimes()
 	return storage
 }
 
-func MockTruncateStorage(t *testing.T, fistIndex, lastIndex, expIdx, expTerm, truncateIndex uint64) db.Storage {
+func MockTruncateStorage(t *testing.T, appliedIndex, fistIndex, lastIndex, expIdx, expTerm, truncateIndex uint64) db.Storage {
 	mockCtl := gomock.NewController(t)
 	storage := mocks.NewMockStorage(mockCtl)
 	storage.EXPECT().Truncate(truncateIndex).Return(nil).AnyTimes()
 	storage.EXPECT().FirstIndex().Return(fistIndex).AnyTimes()
-	storage.EXPECT().LastIndex().Return(lastIndex).AnyTimes()
+	storage.EXPECT().StableIndex().Return(lastIndex).AnyTimes()
 	storage.EXPECT().Term(expIdx).Return(expTerm, nil).AnyTimes()
+	storage.EXPECT().AppliedIndex().Return(appliedIndex).AnyTimes()
 	return storage
 }
 
@@ -84,12 +87,12 @@ func TestFirstIndex(t *testing.T) {
 		want    uint64
 	}{
 		{
-			raftLog: newRaftLog(MockSpecStorage(t, 1, 10, 0, 0)),
+			raftLog: newRaftLog(MockSpecStorage(t, 0, 1, 10, 0, 0)),
 			entries: []pb.Entry{{Index: 11, Term: 1}, {Index: 12, Term: 1}, {Index: 13, Term: 1}},
 			want:    1,
 		},
 		{
-			raftLog: newRaftLog(MockSpecStorage(t, 0, 0, 0, 0)),
+			raftLog: newRaftLog(MockSpecStorage(t, 0, 0, 0, 0, 0)),
 			entries: []pb.Entry{{Index: 11, Term: 1}, {Index: 12, Term: 1}, {Index: 13, Term: 1}},
 			want:    11,
 		},
@@ -113,12 +116,12 @@ func TestLastIndex(t *testing.T) {
 		want    uint64
 	}{
 		{
-			raftLog: newRaftLog(MockSpecStorage(t, 1, 10, 0, 0)),
+			raftLog: newRaftLog(MockSpecStorage(t, 0, 1, 10, 0, 0)),
 			entries: []pb.Entry{{Index: 11, Term: 1}, {Index: 12, Term: 1}, {Index: 13, Term: 1}},
 			want:    13,
 		},
 		{
-			raftLog: newRaftLog(MockSpecStorage(t, 1, 10, 0, 0)),
+			raftLog: newRaftLog(MockSpecStorage(t, 0, 1, 10, 0, 0)),
 			entries: make([]pb.Entry, 0),
 			want:    10,
 		},
@@ -143,13 +146,13 @@ func TestTerm(t *testing.T) {
 		want    uint64
 	}{
 		{
-			raftLog: newRaftLog(MockSpecStorage(t, 1, 10, 8, 8)),
+			raftLog: newRaftLog(MockSpecStorage(t, 0, 1, 10, 8, 8)),
 			entries: []pb.Entry{{Index: 11, Term: 11}, {Index: 12, Term: 12}, {Index: 13, Term: 13}},
 			exptidx: 8,
 			want:    8,
 		},
 		{
-			raftLog: newRaftLog(MockSpecStorage(t, 1, 10, 0, 0)),
+			raftLog: newRaftLog(MockSpecStorage(t, 0, 1, 10, 0, 0)),
 			entries: []pb.Entry{{Index: 11, Term: 11}, {Index: 12, Term: 12}, {Index: 13, Term: 13}},
 			exptidx: 12,
 			want:    12,
@@ -233,7 +236,7 @@ func TestCommitTo(t *testing.T) {
 					}
 				}
 			}()
-			raftLog := newRaftLog(MockSpecStorage(t, 0, 0, 0, 0))
+			raftLog := newRaftLog(MockSpecStorage(t, 0, 0, 0, 0, 0))
 			raftLog.truncateAndAppend(previousEnts)
 			raftLog.committed = commit
 			raftLog.commitTo(tt.commit)
@@ -262,30 +265,30 @@ func TestSlice(t *testing.T) {
 	}{
 		// only storage
 		{"only storage",
-			newRaftLog(MockEntriesStorage(t, firstIndex, offset-1, 50, offset, MockEntries(50, offset))),
+			newRaftLog(MockEntriesStorage(t, 0, firstIndex, offset-1, 50, offset, MockEntries(50, offset))),
 			50, offset, MockEntries(50, offset), false},
 
 		// cross storage and raft log
 		{"cross storage and raft log",
-			newRaftLog(MockEntriesStorage(t, firstIndex, offset-1, 60, offset, MockEntries(60, offset))),
+			newRaftLog(MockEntriesStorage(t, 0, firstIndex, offset-1, 60, offset, MockEntries(60, offset))),
 			60, 120, MockEntries(60, 120), false},
 
 		// only raft log
 		{"only raft log 01 ",
-			newRaftLog(MockSpecStorage(t, firstIndex, offset-1, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, firstIndex, offset-1, ignore, ignore)),
 			offset, 110, MockEntries(offset, 110), false},
 		{"only raft log 02",
-			newRaftLog(MockSpecStorage(t, firstIndex, offset-1, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, firstIndex, offset-1, ignore, ignore)),
 			110, 130, MockEntries(110, 130), false},
 
 		// err compacted
 		{"err compacted",
-			newRaftLog(MockSpecStorage(t, firstIndex, offset-1, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, firstIndex, offset-1, ignore, ignore)),
 			0, 100, nil, false},
 
 		// panic out bounds
 		{"panic out bounds",
-			newRaftLog(MockSpecStorage(t, firstIndex, offset-1, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, firstIndex, offset-1, ignore, ignore)),
 			1, 200, nil, true},
 	}
 
@@ -327,33 +330,33 @@ func TestTruncateAndAppend(t *testing.T) {
 	}{
 		// append to the end
 		{
-			newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)),
 			[]pb.Entry{},
 			[]pb.Entry{{Index: 1, Term: 1}, {Index: 2, Term: 1}},
 			1, []pb.Entry{{Index: 1, Term: 1}, {Index: 2, Term: 1}},
 		},
 		{
-			newRaftLog(MockSpecStorage(t, 1, 4, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, 1, 4, ignore, ignore)),
 			[]pb.Entry{{Index: 5, Term: 1}},
 			[]pb.Entry{{Index: 6, Term: 1}, {Index: 7, Term: 1}},
 			5, []pb.Entry{{Index: 5, Term: 1}, {Index: 6, Term: 1}, {Index: 7, Term: 1}},
 		},
 		// truncate the stable entries  and replace the unstable entries
 		{
-			newRaftLog(MockTruncateStorage(t, 1, 4, ignore, ignore, 4)),
+			newRaftLog(MockTruncateStorage(t, 0, 1, 4, ignore, ignore, 4)),
 			[]pb.Entry{{Index: 5, Term: 1}},
 			[]pb.Entry{{Index: 4, Term: 2}, {Index: 5, Term: 2}, {Index: 6, Term: 2}},
 			4, []pb.Entry{{Index: 4, Term: 2}, {Index: 5, Term: 2}, {Index: 6, Term: 2}},
 		},
 		// truncate the unstable entries
 		{
-			newRaftLog(MockSpecStorage(t, 1, 4, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, 1, 4, ignore, ignore)),
 			[]pb.Entry{{Index: 5, Term: 1}, {Index: 6, Term: 1}, {Index: 7, Term: 1}},
 			[]pb.Entry{{Index: 6, Term: 2}},
 			5, []pb.Entry{{Index: 5, Term: 1}, {Index: 6, Term: 2}},
 		},
 		{
-			newRaftLog(MockSpecStorage(t, 1, 4, ignore, ignore)),
+			newRaftLog(MockSpecStorage(t, 0, 1, 4, ignore, ignore)),
 			[]pb.Entry{{Index: 5, Term: 1}, {Index: 6, Term: 1}, {Index: 7, Term: 1}},
 			[]pb.Entry{{Index: 7, Term: 2}, {Index: 8, Term: 2}},
 			5, []pb.Entry{{Index: 5, Term: 1}, {Index: 6, Term: 1}, {Index: 7, Term: 2}, {Index: 8, Term: 2}},
@@ -396,54 +399,54 @@ func TestLogMaybeAppend(t *testing.T) {
 		// relate unstable entries
 		// not match: term is different
 		{
-			"not match: term is different", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm - 1, lastindex, lastindex, []pb.Entry{{Index: lastindex + 1, Term: 4}},
+			"not match: term is different", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm - 1, lastindex, lastindex, []pb.Entry{{Index: lastindex + 1, Term: 4}},
 			0, false, commit, false,
 		},
 		// not match: index out of bound
 		{
-			"not match: index out of bound", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex + 1, lastindex, []pb.Entry{{Index: lastindex + 2, Term: 4}},
+			"not match: index out of bound", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex + 1, lastindex, []pb.Entry{{Index: lastindex + 2, Term: 4}},
 			0, false, commit, false,
 		},
 		// match with the last existing entry
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex, nil,
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex, nil,
 			lastindex, true, lastindex, false,
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex - 1, nil,
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex - 1, nil,
 			lastindex, true, lastindex - 1, false, // commit up to the commit in the message
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex, 0, nil,
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex, 0, nil,
 			lastindex, true, commit, false, // commit do not decrease
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex, []pb.Entry{{Index: lastindex + 1, Term: 4}},
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex, []pb.Entry{{Index: lastindex + 1, Term: 4}},
 			lastindex + 1, true, lastindex, false,
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex + 1, []pb.Entry{{Index: lastindex + 1, Term: 4}},
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex + 1, []pb.Entry{{Index: lastindex + 1, Term: 4}},
 			lastindex + 1, true, lastindex + 1, false,
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex + 2, []pb.Entry{{Index: lastindex + 1, Term: 4}},
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex + 2, []pb.Entry{{Index: lastindex + 1, Term: 4}},
 			lastindex + 1, true, lastindex + 1, false, // do not increase commit higher than lastnewi
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex + 2, []pb.Entry{{Index: lastindex + 1, Term: 4}, {Index: lastindex + 2, Term: 4}},
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm, lastindex, lastindex + 2, []pb.Entry{{Index: lastindex + 1, Term: 4}, {Index: lastindex + 2, Term: 4}},
 			lastindex + 2, true, lastindex + 2, false,
 		},
 		// match with the the entry in the middle
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm - 1, lastindex - 1, lastindex, []pb.Entry{{Index: lastindex, Term: 4}},
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm - 1, lastindex - 1, lastindex, []pb.Entry{{Index: lastindex, Term: 4}},
 			lastindex, true, lastindex, false,
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm - 2, lastindex - 2, lastindex, []pb.Entry{{Index: lastindex - 1, Term: 4}},
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm - 2, lastindex - 2, lastindex, []pb.Entry{{Index: lastindex - 1, Term: 4}},
 			lastindex - 1, true, lastindex - 1, false,
 		},
 		{
-			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, ignore, ignore)), lastterm - 2, lastindex - 2, lastindex, []pb.Entry{{Index: lastindex - 1, Term: 4}, {Index: lastindex, Term: 4}},
+			"match with the last existing entry", newRaftLog(MockSpecStorage(t, 0, 0, 0, ignore, ignore)), lastterm - 2, lastindex - 2, lastindex, []pb.Entry{{Index: lastindex - 1, Term: 4}, {Index: lastindex, Term: 4}},
 			lastindex, true, lastindex, false,
 		},
 		//todo relate stable storage
@@ -505,7 +508,7 @@ func TestHasNextCommittedEnts(t *testing.T) {
 		{5, false},
 	}
 	for i, tt := range tests {
-		raftLog := newRaftLog(MockSpecStorage(t, 1, 3, 0, 0))
+		raftLog := newRaftLog(MockSpecStorage(t, 0, 1, 3, 0, 0))
 		raftLog.committed = 3
 		raftLog.truncateAndAppend(ents)
 		raftLog.maybeCommit(5, 1)
@@ -536,7 +539,7 @@ func TestNextCommittedEnts(t *testing.T) {
 	}
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			raftLog := newRaftLog(MockSpecStorage(t, 1, 3, 0, 0))
+			raftLog := newRaftLog(MockSpecStorage(t, 0, 1, 3, 0, 0))
 			raftLog.committed = 3
 			raftLog.truncateAndAppend(ents)
 			raftLog.maybeCommit(5, 1)

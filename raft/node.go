@@ -15,34 +15,14 @@ type Node interface {
 	// Tick increments the internal logical clock for the Node by a single tick. Election
 	// timeouts and heartbeat timeouts are in units of ticks.
 	Tick()
-
 	// Propose proposes that data be appended to the log. Note that proposals can be lost without
 	// notice, therefore it is user's job to ensure proposal retries.
-	Propose(ctx context.Context, data []byte) error
-	// ProposeConfChange proposes a configuration change. Like any proposal
-	ProposeConfChange(ctx context.Context, cc pb.ConfChange) error
-	// ApplyConfChange applies a config change (previously passed to
-	// ProposeConfChange) to the node. This must be called whenever a config
-	// change is observed in Ready.CommittedEntries, except when the app decides
-	// to reject the configuration change (i.e. treats it as a noop instead), in
-	// which case it must not be called.
-	ApplyConfChange(cc pb.ConfChange) *pb.ConfState
-	// TransferLeadership attempts to transfer leadership to the given transferee.
-	TransferLeadership(ctx context.Context, lead, transferee uint64)
-	// Campaign causes the Node to transition to candidate state and start campaigning to become leader.
-	Campaign(ctx context.Context) error
-	// ReadIndex request a read state. The read state will be set in the ready.
-	// Read state has a read index. Once the application advances further than the read
-	// index, any linearizable read requests issued before the read request can be
-	// processed safely. The read state will have the same rctx attached.
-	// Note that request can be lost without notice, therefore it is user's job
-	// to ensure read index retries.
-	ReadIndex(ctx context.Context, rctx []byte) error
-	// ReportUnreachable reports the given node is not reachable for the last send.
+	Propose(data []byte) error
+
 	ReportUnreachable(id uint64)
 
 	// Step advances the state machine using the given message. ctx.Err() will be returned, if any.
-	Step(ctx context.Context, msg pb.Message) error
+	Step(msg pb.Message) error
 
 	// Ready returns a channel that returns the current point-in-time state.
 	// Users of the Node must call Advance after retrieving the state returned by Ready.
@@ -87,13 +67,10 @@ type msgWithResult struct {
 }
 
 type raftNode struct {
-	rawNode *rawNode
-
-	confChangeC chan pb.ConfChange
-	confStateC  chan pb.ConfState
-	readyC      chan Ready
-	propC       chan msgWithResult
-	receiveC    chan pb.Message
+	rawNode  *rawNode
+	readyC   chan Ready
+	propC    chan msgWithResult
+	receiveC chan pb.Message
 
 	advanceC chan struct{}
 	tickC    chan struct{}
@@ -101,7 +78,7 @@ type raftNode struct {
 	stopC    chan struct{}
 }
 
-func StartRaftNode(raftConfig *config.RaftConfig, storage db.Storage) (Node, error) {
+func StartRaftNode(raftConfig *config.RaftConfig, storage db.Storage) Node {
 	opts := &raftOpts{
 		Id:               raftConfig.Id,
 		electionTimeout:  raftConfig.ElectionTick,
@@ -109,28 +86,21 @@ func StartRaftNode(raftConfig *config.RaftConfig, storage db.Storage) (Node, err
 		storage:          storage,
 	}
 
-	rn, err := NewRawNode(opts)
-	if err != nil {
-		return nil, err
-	}
-
 	rN := &raftNode{
-		propC:       make(chan msgWithResult),
-		receiveC:    make(chan pb.Message),
-		confChangeC: make(chan pb.ConfChange),
-		confStateC:  make(chan pb.ConfState),
-		readyC:      make(chan Ready),
-		advanceC:    make(chan struct{}),
+		propC:    make(chan msgWithResult),
+		receiveC: make(chan pb.Message),
+		readyC:   make(chan Ready),
+		advanceC: make(chan struct{}),
 		// make tickC a buffered chan, so raft node can buffer some ticks when the node
 		// is busy processing raft messages. Raft node will resume process buffered
 		// ticks when it becomes idle.
 		tickC:   make(chan struct{}, 128),
 		doneC:   make(chan struct{}),
 		stopC:   make(chan struct{}),
-		rawNode: rn,
+		rawNode: NewRawNode(opts),
 	}
 	rN.serveAppNode()
-	return rN, nil
+	return rN
 }
 
 func (rn *raftNode) serveAppNode() {
@@ -197,38 +167,9 @@ func (rn *raftNode) Propose(ctx context.Context, data []byte) error {
 	return rn.stepWait(ctx, pb.Message{Type: pb.MsgProp, Entries: []pb.Entry{{Data: data}}})
 }
 
-func (rn *raftNode) ProposeConfChange(ctx context.Context, cc pb.ConfChange) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (rn *raftNode) ApplyConfChange(cc pb.ConfChange) *pb.ConfState {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (rn *raftNode) ReadIndex(ctx context.Context, rctx []byte) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (rn *raftNode) ReportUnreachable(id uint64) {
 	//TODO implement me
 	panic("implement me")
-}
-
-func (rn *raftNode) Campaign(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (rn *raftNode) TransferLeadership(ctx context.Context, lead, transferee uint64) {
-	select {
-	// manually set 'from' and 'to', so that leader can voluntarily transfers its leadership
-	case rn.receiveC <- pb.Message{Type: pb.MsgTransferLeader, From: transferee, To: lead}:
-	case <-rn.doneC:
-	case <-ctx.Done():
-	}
 }
 
 func (rn *raftNode) Step(ctx context.Context, m pb.Message) error {
@@ -236,24 +177,22 @@ func (rn *raftNode) Step(ctx context.Context, m pb.Message) error {
 		log.Errorf("node %d receive a wrong type msg from other peer  %d,msg type %s", m.To, m.From, m.Type.String())
 		return nil
 	}
-	return rn.step(ctx, m)
+	return rn.step(m)
 }
 
-func (rn *raftNode) step(ctx context.Context, m pb.Message) error {
-	return rn.stepWithWaitOption(ctx, m, false)
+func (rn *raftNode) step(m pb.Message) error {
+	return rn.stepWithWaitOption(m, false)
 }
 
-func (rn *raftNode) stepWait(ctx context.Context, m pb.Message) error {
-	return rn.stepWithWaitOption(ctx, m, true)
+func (rn *raftNode) stepWait(m pb.Message) error {
+	return rn.stepWithWaitOption(m, true)
 }
 
-func (rn *raftNode) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) error {
+func (rn *raftNode) stepWithWaitOption(m pb.Message, wait bool) error {
 	if m.Type != pb.MsgProp {
 		select {
 		case rn.receiveC <- m:
 			return nil
-		case <-ctx.Done():
-			return ctx.Err()
 		case <-rn.doneC:
 			return ErrStopped
 		}
@@ -268,18 +207,15 @@ func (rn *raftNode) stepWithWaitOption(ctx context.Context, m pb.Message, wait b
 		if !wait {
 			return nil
 		}
-	case <-ctx.Done():
-		return ctx.Err()
 	case <-rn.doneC:
 		return ErrStopped
 	}
+
 	select {
 	case err := <-pm.result:
 		if err != nil {
 			return err
 		}
-	case <-ctx.Done():
-		return ctx.Err()
 	case <-rn.doneC:
 		return ErrStopped
 	}
@@ -308,7 +244,7 @@ type Ready struct {
 	// committed to stable storage.
 	// If it contains a MsgSnap message, the application MUST report back to raft
 	// when the snapshot has been received or has failed by calling ReportSnapshot.
-	Messages []pb.Message
+	Messages []*pb.Message
 
 	// MustSync indicates whether the HardState and Entries must be synchronously
 	// written to disk or if an asynchronous write is permissible.

@@ -19,7 +19,6 @@ func main() {
 
 	proposeC := make(chan []byte, raftConfig.RequestLimit)
 	confChangeC := make(chan pb.ConfChange)
-
 	kvServiceStopC := make(chan struct{})
 	monitorKV := make(map[int64]chan struct{})
 

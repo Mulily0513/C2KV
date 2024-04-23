@@ -30,6 +30,7 @@ import (
 )
 
 const None uint64 = 0
+const InitialTerm uint64 = 0
 const noLimit = math.MaxUint64
 
 var SendEmptyMessage bool = true
@@ -59,23 +60,6 @@ const (
 	ReadOnlyLeaseBased
 )
 
-// CampaignType represents the type of campaigning
-// the reason we use the type of string instead of uint64
-// is because it's simpler to compare and fill in raft entries
-type CampaignType string
-
-// Possible values for CampaignType
-const (
-	// campaignPreElection represents the first phase of a normal election when
-	// Config.PreVote is true.
-	campaignPreElection CampaignType = "CampaignPreElection"
-	// campaignElection represents a normal (time-based) election (the second phase
-	// of the election when Config.PreVote is true).
-	campaignElection CampaignType = "CampaignElection"
-	// campaignTransfer represents the type of leader transfer
-	campaignTransfer CampaignType = "CampaignTransfer"
-)
-
 // StateType represents the role of a node in a cluster.
 type StateType uint64
 
@@ -83,7 +67,6 @@ var stmap = [...]string{
 	"StateFollower",
 	"StateCandidate",
 	"StateLeader",
-	"StatePreCandidate",
 }
 
 func (st StateType) String() string {
@@ -118,74 +101,58 @@ func (c *raftOpts) validate() error {
 }
 
 type raft struct {
-	raftOpts *raftOpts
-
-	id   uint64
-	lead uint64
-	Term uint64
-	vote uint64
-	// leadTransferee is id of the leader transfer target when its value is not zero.
-	leadTransferee uint64
-	state          StateType
+	id    uint64
+	lead  uint64
+	Term  uint64
+	vote  uint64
+	state StateType
 
 	raftLog *raftLog
 	//用于追踪节点的相关信息
 	trk tracker.ProgressTracker
 	//需要发送给其他节点的消息
 	msgs []pb.Message
-
 	//不同角色指向不同的stepFunc
 	stepFunc stepFunc
 	//不同角色指向不同的tick驱动函数
 	tick func()
 
+	electionTimeout  int
+	heartbeatTimeout int
 	// randomizedElectionTimeout is a random number between
 	// [electiontimeout, 2 * electiontimeout - 1]. It gets reset
 	// when raft changes its state to follower or candidate.
 	randomizedElectionTimeout int
-	// number of ticks since it reached last electionTimeout when it is leader
-	// or candidate.
-	// number of ticks since it reached last electionTimeout or received a
-	// valid message from current leader when it is a follower.
-	electionElapsed int
-	// number of ticks since it reached last heartbeatTimeout.
-	// only leader keeps heartbeatElapsed.
-	heartbeatElapsed int
+	electionElapsed           int
+	heartbeatElapsed          int
 }
 
-func newRaft(opts *raftOpts) (r *raft, err error) {
-	storage := opts.storage
-	if err = opts.validate(); err != nil {
+func newRaft(opts *raftOpts) (r *raft) {
+	if err := opts.validate(); err != nil {
 		log.Panicf("verify raft options failed", err)
-	}
-	rLog := newRaftLog(storage)
-	hs, _, err := storage.InitialState()
-	if err != nil {
-		log.Panicf("get hard state  from storage failed", err)
-	}
-
-	if !IsEmptyHardState(hs) {
-		r.loadHardState(hs)
 	}
 
 	trk := tracker.MakeProgressTracker(opts.peers)
 
 	r = &raft{
-		id:       opts.Id,
-		raftOpts: opts,
-		lead:     None,
-		raftLog:  rLog,
-		trk:      trk,
+		id:               opts.Id,
+		lead:             None,
+		raftLog:          newRaftLog(opts.storage),
+		trk:              trk,
+		msgs:             make([]pb.Message, 0),
+		electionTimeout:  opts.electionTimeout,
+		heartbeatTimeout: opts.heartbeatTimeout,
 	}
 
-	r.becomeFollower(r.Term, None)
-
-	var nodesStrs []string
-	for _, n := range r.trk.VoterNodes() {
-		nodesStrs = append(nodesStrs, fmt.Sprintf("%x", n))
+	hs, _ := r.raftLog.storage.InitialState()
+	if !IsEmptyHardState(hs) {
+		r.loadHardState(hs)
 	}
-	log.Infof("new raft node  %x [ peers: [%s], term: %d, commit: %d, applied: %d, lastindex: %d, lastterm: %d ]",
-		r.id, strings.Join(nodesStrs, ","), r.Term, r.raftLog.committed, r.raftLog.applied, r.raftLog.lastIndex(), r.raftLog.lastTerm())
+
+	r.becomeFollower(InitialTerm, None)
+
+	log.Infof("new raft node start , id: %x [ peers: [%s], term: %d, commit: %d, applied: %d, lastindex: %d, lastterm: %d ]",
+		r.id, strings.Join(r.trk.VoterNodesStr(), ","), r.Term, r.raftLog.committed, r.raftLog.applied, r.raftLog.lastIndex(), r.raftLog.lastTerm())
 	return
 }
 
@@ -209,8 +176,8 @@ func (r *raft) hardState() pb.HardState {
 }
 
 func (r *raft) becomeLeader() {
-	if r.state == StateFollower && len(r.trk.Voters) != 1 {
-		log.Panic("invalid transition [follower -> leader]")
+	if r.state == StateFollower {
+		log.Panic("invalid transition [follower -> leader]").Record()
 	}
 	r.stepFunc = stepLeader
 	r.tick = r.tickHeartbeat
@@ -226,7 +193,7 @@ func (r *raft) becomeLeader() {
 		r.trk.Progress[pr].Match = 0
 	}
 
-	// 更新自己的 match 和 next
+	// 更新leader 的 match 和 next
 	r.trk.Progress[r.id].Next = lastIndex + 1
 	r.trk.Progress[r.id].Match = lastIndex
 
@@ -269,18 +236,15 @@ func (r *raft) tickHeartbeat() {
 	r.electionElapsed++
 
 	//选举超时，开始选举
-	if r.electionElapsed >= r.raftOpts.electionTimeout {
+	if r.electionElapsed >= r.electionTimeout {
 		r.electionElapsed = 0
 		// If current leader cannot transfer leadership in electionTimeout, cancel leader transfer
-		if r.state == StateLeader && r.leadTransferee != None {
-			r.abortLeaderTransfer()
-		}
 		r.becomeCandidate()
 		r.sendAllRequestVote()
 	}
 
 	//心跳超时，发送心跳
-	if r.heartbeatElapsed >= r.raftOpts.heartbeatTimeout {
+	if r.heartbeatElapsed >= r.heartbeatTimeout {
 		r.heartbeatElapsed = 0
 		r.Step(pb.Message{From: r.id, Type: pb.MsgBeat})
 	}
@@ -292,7 +256,7 @@ func (r *raft) Step(m pb.Message) error {
 	case m.Term == 0:
 	case m.Term > r.Term:
 		log.Infof("peer: %x [term: %d] received a %s message with higher term from peer:%x [term: %d]", r.id, r.Term, m.Type, m.From, m.Term)
-		if m.Type == pb.MsgApp || m.Type == pb.MsgHeartbeat || m.Type == pb.MsgSnap {
+		if m.Type == pb.MsgApp || m.Type == pb.MsgHeartbeat {
 			r.becomeFollower(m.Term, m.From)
 		} else {
 			r.becomeFollower(m.Term, None)
@@ -332,7 +296,6 @@ func stepLeader(r *raft, m pb.Message) error {
 		return r.handlePropMsg(m)
 	}
 
-	// All other message types require a progress for m.From (pr).
 	pr := r.trk.Progress[m.From]
 	if pr == nil {
 		log.Debugf("%x no progress available for %x", r.id, m.From)
@@ -346,8 +309,6 @@ func stepLeader(r *raft, m pb.Message) error {
 		r.handleHeartbeatResponse(m, pr)
 	case pb.MsgUnreachable:
 		r.handleMsgUnreachableStatus(m, pr)
-	case pb.MsgTransferLeader:
-		r.handleTransferLeader(m, pr)
 	}
 	return nil
 }
@@ -440,35 +401,6 @@ func (r *raft) handleMsgUnreachableStatus(m pb.Message, pr *tracker.Progress) {
 	log.Debugf("%x failed to send message to %x because it is unreachable [%s]", r.id, m.From, pr)
 }
 
-func (r *raft) handleTransferLeader(m pb.Message, pr *tracker.Progress) {
-	leadTransferee := m.From
-	lastLeadTransferee := r.leadTransferee
-	if lastLeadTransferee != None {
-		if lastLeadTransferee == leadTransferee {
-			log.Infof("%x [term %d] transfer leadership to %x is in progress, ignores request to same node %x",
-				r.id, r.Term, leadTransferee, leadTransferee)
-
-		}
-		r.abortLeaderTransfer()
-		log.Infof("%x [term %d] abort previous transferring leadership to %x", r.id, r.Term, lastLeadTransferee)
-	}
-	if leadTransferee == r.id {
-		log.Debugf("%x is already leader. Ignored transferring leadership to self", r.id)
-
-	}
-	// Transfer leadership to third party.
-	log.Infof("%x [term %d] starts to transfer leadership to %x", r.id, r.Term, leadTransferee)
-	// Transfer leadership should be finished in one electionTimeout, so reset r.electionElapsed.
-	r.electionElapsed = 0
-	r.leadTransferee = leadTransferee
-	if pr.Match == r.raftLog.lastIndex() {
-		r.sendTimeoutNow(leadTransferee)
-		log.Infof("%x sends MsgTimeoutNow to %x immediately as %x already has up-to-date log", r.id, leadTransferee, leadTransferee)
-	} else {
-		r.sendAppend(leadTransferee)
-	}
-}
-
 func (r *raft) sendTimeoutNow(to uint64) {
 	r.send(pb.Message{To: to, Type: pb.MsgTimeoutNow})
 }
@@ -534,11 +466,6 @@ func (r *raft) handleAppendResponse(m pb.Message, pr *tracker.Progress) {
 			// latest commit index, so send it.
 			r.sendAppend(m.From)
 		}
-
-		// 如果是正在 transfer 的目标，transfer
-		if m.From == r.leadTransferee {
-			r.Step(pb.Message{Type: pb.MsgTransferLeader, From: m.From})
-		}
 	}
 
 }
@@ -550,10 +477,7 @@ func (r *raft) handlePropMsg(m pb.Message) error {
 	if r.trk.Progress[r.id] == nil {
 		return ErrProposalDropped
 	}
-	if r.leadTransferee != None {
-		log.Debugf("%x [term %d] transfer leadership to %x is in progress; dropping proposal", r.id, r.Term, r.leadTransferee)
-		return ErrProposalDropped
-	}
+
 	r.handleConfigEntry(m.Entries)
 	r.appendEntry(m.Entries...)
 	r.bcastAppend()
@@ -584,24 +508,13 @@ func (r *raft) bcastAppend() {
 }
 
 func (r *raft) sendAppend(to uint64) {
-	r.maybeSendAppend(to)
-}
-
-func (r *raft) maybeSendAppend(to uint64) bool {
 	pr := r.trk.Progress[to]
-	if pr.IsPaused() {
-		return false
-	}
-
-	m := pb.Message{}
-	m.To = to
-
+	m := pb.Message{To: to}
 	prevLogIndex := pr.Next - 1
 	prevLogTerm, errt := r.raftLog.term(prevLogIndex)
 	ents, erre := r.raftLog.slice(pr.Next, r.raftLog.lastIndex()+1)
-
-	// todo send snapshot if we failed to get term or entries
 	if errt != nil || erre != nil {
+		// todo send snapshot if we failed to get term or entries
 	}
 
 	m.Type = pb.MsgApp
@@ -613,7 +526,7 @@ func (r *raft) maybeSendAppend(to uint64) bool {
 	m.Entries = ents
 	m.Commit = r.raftLog.committed
 	r.send(m)
-	return true
+	return
 }
 
 // maybeCommit attempts to advance the commit index. Returns true if
@@ -753,16 +666,11 @@ func (r *raft) reset(term uint64) {
 	r.electionElapsed = 0
 	r.heartbeatElapsed = 0
 	r.resetRandomizedElectionTimeout()
-	r.abortLeaderTransfer()
 	r.trk.ResetVotes()
 }
 
-func (r *raft) abortLeaderTransfer() {
-	r.leadTransferee = None
-}
-
 func (r *raft) resetRandomizedElectionTimeout() {
-	r.randomizedElectionTimeout = r.raftOpts.electionTimeout + globalRand.Intn(r.raftOpts.electionTimeout)
+	r.randomizedElectionTimeout = r.electionTimeout + globalRand.Intn(r.electionTimeout)
 }
 
 func (r *raft) send(m pb.Message) {
