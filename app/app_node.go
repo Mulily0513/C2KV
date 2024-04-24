@@ -113,9 +113,7 @@ func (an *AppNode) servePropCAndConfC() {
 	for an.proposeC != nil {
 		select {
 		case prop := <-an.proposeC:
-			if err := an.raftNode.Propose(prop); err != nil {
-				log.Errorf("propose err", err)
-			}
+			an.raftNode.Propose(prop)
 		}
 	}
 }

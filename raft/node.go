@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"errors"
 	"github.com/ColdToo/Cold2DB/config"
 	"github.com/ColdToo/Cold2DB/db"
 	"github.com/ColdToo/Cold2DB/log"
@@ -14,14 +13,15 @@ type Node interface {
 	// Tick increments the internal logical clock for the Node by a single tick. Election
 	// timeouts and heartbeat timeouts are in units of ticks.
 	Tick()
+
 	// Propose proposes that data be appended to the log. Note that proposals can be lost without
 	// notice, therefore it is user's job to ensure proposal retries.
-	Propose(data []byte) error
+	Propose(data []byte)
 
 	ReportUnreachable(id uint64)
 
 	// Step advances the state machine using the given message. ctx.Err() will be returned, if any.
-	Step(msg *pb.Message) error
+	Step(msg *pb.Message)
 
 	// Ready returns a channel that returns the current point-in-time state.
 	// Users of the Node must call Advance after retrieving the state returned by Ready.
@@ -53,11 +53,6 @@ type SoftState struct {
 
 func (a *SoftState) equal(b *SoftState) bool {
 	return a.Lead == b.Lead && a.RaftState == b.RaftState
-}
-
-type msgWithResult struct {
-	m      *pb.Message
-	result chan error
 }
 
 type raftNode struct {
@@ -98,12 +93,9 @@ func StartRaftNode(raftConfig *config.RaftConfig, storage db.Storage) Node {
 }
 
 func (rn *raftNode) serveAppNode() {
-	var propC chan msgWithResult
 	var readyC chan Ready
 	var advanceC chan struct{}
 	var rd Ready
-
-	r := rn.raft
 
 	for {
 		//advanceC 不为nil，说明此时在等待应用层处理上轮ready
@@ -119,16 +111,11 @@ func (rn *raftNode) serveAppNode() {
 		case <-rn.tickC:
 			rn.raft.tick()
 		case m := <-rn.receiveC:
-			if pr := r.trk.Progress[m.From]; pr != nil {
-				r.Step(m)
+			if pr := rn.raft.trk.Progress[m.From]; pr != nil {
+				rn.raft.Step(m)
 			}
-		case pm := <-propC:
-			pm.m.From = r.id
-			err := r.Step(pm.m)
-			if pm.result != nil {
-				pm.result <- err
-				close(pm.result)
-			}
+		case m := <-rn.propC:
+			rn.raft.Step(m)
 		case readyC <- rd:
 			advanceC = rn.advanceC
 		case <-advanceC:
@@ -147,8 +134,15 @@ func (rn *raftNode) Tick() {
 	}
 }
 
-func (rn *raftNode) Propose(data []byte) error {
-	return rn.stepWait(&pb.Message{Type: pb.MsgProp, Entries: []pb.Entry{{Data: data}}})
+func (rn *raftNode) Step(m *pb.Message) {
+	if m.Type == pb.MsgProp {
+		rn.propC <- m
+	}
+	rn.receiveC <- m
+}
+
+func (rn *raftNode) Propose(data []byte) {
+	rn.Step(&pb.Message{Type: pb.MsgProp, Entries: []pb.Entry{{Data: data}}})
 }
 
 func (rn *raftNode) ReportUnreachable(id uint64) {
@@ -156,39 +150,14 @@ func (rn *raftNode) ReportUnreachable(id uint64) {
 	panic("implement me")
 }
 
-func (rn *raftNode) Step(m *pb.Message) error {
-	if m.Type != pb.MsgProp {
-
-		rn.receiveC <- m:
-		rn.propC <- m:
-	}
-}
-	return rn.stepWait(m)
-}
-
-func (rn *raftNode) step(m *pb.Message) error {
-	return rn.stepWithWaitOption(m, false)
-}
-
-func (rn *raftNode) stepWait(m *pb.Message) error {
-	return rn.stepWithWaitOption(m, true)
-}
-
-func (rn *raftNode) stepWithWaitOption(m *pb.Message, wait bool) error {
-	if m.Type != pb.MsgProp {
-
-       rn.receiveC <- m:
-		rn.propC <- m:
-		}
-	}
-}
-
 func (rn *raftNode) Ready() <-chan Ready { return rn.readyC }
 
 func (rn *raftNode) Advance() { rn.advanceC <- struct{}{} }
 
-// HasReady called when raftNode user need to check if any Ready pending.
-// Checking logic in this method should be consistent with Ready.containsUpdates().
+func (rn *raftNode) Stop() {
+	//todo
+}
+
 func (rn *raftNode) HasReady() bool {
 	r := rn.raft
 	if !r.softState().equal(rn.prevSoftSt) {
@@ -203,8 +172,6 @@ func (rn *raftNode) HasReady() bool {
 	return false
 }
 
-// Advance notifies the raftNode that the application has applied and saved progress in the
-// last Ready results.
 func (rn *raftNode) advance(rd Ready) {
 	if !IsEmptyHardState(rd.HardState) {
 		rn.prevHardSt = rd.HardState
@@ -234,10 +201,6 @@ func (rn *raftNode) newReady() Ready {
 	return rd
 }
 
-func (rn *raftNode) Stop() {
-	//todo
-}
-
 type Ready struct {
 	// The current volatile state of a Node.
 	// SoftState will be nil if there is no update.
@@ -262,8 +225,4 @@ type Ready struct {
 	// If it contains a MsgSnap message, the application MUST report back to raft
 	// when the snapshot has been received or has failed by calling ReportSnapshot.
 	Messages []*pb.Message
-
-	// MustSync indicates whether the HardState and Entries must be synchronously
-	// written to disk or if an asynchronous write is permissible.
-	MustSync bool
 }

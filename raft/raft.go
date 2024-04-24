@@ -250,11 +250,8 @@ func (r *raft) tickHeartbeat() {
 	}
 }
 
-func (r *raft) Step(m *pb.Message) error {
-	switch {
-	// local message
-	case m.Term == 0:
-	case m.Term > r.Term:
+func (r *raft) Step(m *pb.Message) {
+	if m.Term > r.Term {
 		log.Infof("peer: %x [term: %d] received a %s message with higher term from peer:%x [term: %d]", r.id, r.Term, m.Type, m.From, m.Term)
 		if m.Type == pb.MsgApp || m.Type == pb.MsgHeartbeat {
 			r.becomeFollower(m.Term, m.From)
@@ -280,26 +277,24 @@ func (r *raft) Step(m *pb.Message) error {
 			r.send(&pb.Message{From: r.id, To: m.From, Term: r.Term, Type: voteRespMsgType(m.Type), Reject: true})
 		}
 	default:
-		return r.stepFunc(r, m)
+		r.stepFunc(r, m)
 	}
-	return nil
 }
 
-type stepFunc func(r *raft, m *pb.Message) error
+type stepFunc func(r *raft, m *pb.Message)
 
-func stepLeader(r *raft, m *pb.Message) error {
-	// These message types do not require any progress for m.From.
+func stepLeader(r *raft, m *pb.Message) {
 	switch m.Type {
 	case pb.MsgBeat:
 		r.bcastHeartbeat()
 	case pb.MsgProp:
-		return r.handlePropMsg(m)
+		r.handlePropMsg(m)
 	}
 
 	pr := r.trk.Progress[m.From]
 	if pr == nil {
-		log.Debugf("%x no progress available for %x", r.id, m.From)
-		return nil
+		log.Errorf("%x no progress available for %x", r.id, m.From)
+		return
 	}
 
 	switch m.Type {
@@ -310,20 +305,20 @@ func stepLeader(r *raft, m *pb.Message) error {
 	case pb.MsgUnreachable:
 		r.handleMsgUnreachableStatus(m, pr)
 	}
-	return nil
+	return
 }
 
-func stepFollower(r *raft, m *pb.Message) error {
+func stepFollower(r *raft, m *pb.Message) {
 	switch m.Type {
 	case pb.MsgHeartbeat:
 		r.handleHeartbeat(m)
 	case pb.MsgApp:
 		r.handleAppendEntries(m)
 	}
-	return nil
+	return
 }
 
-func stepCandidate(r *raft, m *pb.Message) error {
+func stepCandidate(r *raft, m *pb.Message) {
 	switch m.Type {
 	case pb.MsgApp:
 		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
@@ -336,24 +331,20 @@ func stepCandidate(r *raft, m *pb.Message) error {
 	case pb.MsgTimeoutNow:
 		log.Debugf("%x [term %d state %v] ignored MsgTimeoutNow from %x", r.id, r.Term, r.state, m.From)
 	}
-	return nil
+	return
 }
 
 // ------------------- leader behavior -------------------
 
 func (r *raft) bcastHeartbeat() {
-	r.bcastHeartbeatWithCtx(nil)
-}
-
-func (r *raft) bcastHeartbeatWithCtx(ctx []byte) {
 	for _, id := range r.trk.Voters.Slice() {
 		if r.id != id {
-			r.sendHeartbeat(id, ctx)
+			r.sendHeartbeat(id)
 		}
 	}
 }
 
-func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
+func (r *raft) sendHeartbeat(to uint64) {
 	// Attach the commit as min(to.matched, r.committed).
 	// When the leader sends out heartbeat message,
 	// the receiver(follower) might not be matched with the leader
@@ -361,19 +352,13 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 	// The leader MUST NOT forward the follower's commit to
 	// an unmatched index.
 	commit := min(r.trk.Progress[to].Match, r.raftLog.committed)
-	_, ok := r.trk.Progress[to]
-	if !ok {
-		log.Panic("peer not in the cluster")
-	}
 	m := &pb.Message{
-		From:    r.id,
-		To:      to,
-		Type:    pb.MsgHeartbeat,
-		Commit:  commit,
-		Term:    r.Term,
-		Context: ctx,
+		From:   r.id,
+		To:     to,
+		Type:   pb.MsgHeartbeat,
+		Commit: commit,
+		Term:   r.Term,
 	}
-
 	r.send(m)
 }
 
@@ -387,11 +372,6 @@ func (r *raft) handleHeartbeatResponse(m *pb.Message, pr *tracker.Progress) {
 	}
 
 	return
-}
-
-func (r *raft) handleSnapStatus(m *pb.Message, pr *tracker.Progress) (err error) {
-	//todo
-	return err
 }
 
 func (r *raft) handleMsgUnreachableStatus(m *pb.Message, pr *tracker.Progress) {
@@ -466,23 +446,9 @@ func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
 
 }
 
-func (r *raft) handlePropMsg(m *pb.Message) error {
-	if len(m.Entries) == 0 {
-		log.Panicf("%x stepped empty MsgProp", r.id)
-	}
-	if r.trk.Progress[r.id] == nil {
-		return ErrProposalDropped
-	}
-
-	r.handleConfigEntry(m.Entries)
+func (r *raft) handlePropMsg(m *pb.Message) {
 	r.appendEntry(m.Entries...)
 	r.bcastAppend()
-	return nil
-}
-
-func (r *raft) handleConfigEntry(ents []pb.Entry) {
-	//todo
-	return
 }
 
 func (r *raft) appendEntry(es ...pb.Entry) {
@@ -492,7 +458,6 @@ func (r *raft) appendEntry(es ...pb.Entry) {
 		es[i].Index = li + 1 + uint64(i)
 	}
 	r.raftLog.truncateAndAppend(es)
-	return
 }
 
 func (r *raft) bcastAppend() {
@@ -525,9 +490,6 @@ func (r *raft) sendAppend(to uint64) {
 	return
 }
 
-// maybeCommit attempts to advance the commit index. Returns true if
-// the commit index changed (in which case the caller should call
-// r.bcastAppend).
 func (r *raft) maybeCommit() bool {
 	return false
 }
@@ -563,7 +525,7 @@ func (r *raft) handleAppendEntries(m *pb.Message) {
 	if err != nil {
 		log.Panicf(fmt.Sprintf("term(%d) must be valid, but got %v", hintIndex, err))
 	}
-	r.send(pb.Message{
+	r.send(&pb.Message{
 		To:         m.From,
 		Type:       pb.MsgAppResp,
 		Index:      m.Index,
@@ -679,7 +641,7 @@ func (r *raft) advance() {
 	}
 
 	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 {
-		r.raftLog.appliedTo(newStabled)
+		r.raftLog.stableTo(newStabled)
 	}
 }
 
