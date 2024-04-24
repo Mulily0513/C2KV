@@ -76,10 +76,10 @@ func (mr *MockStorageMockRecorder) Close() *gomock.Call {
 }
 
 // Entries mocks base method.
-func (m *MockStorage) Entries(lo, hi uint64) ([]pb.Entry, error) {
+func (m *MockStorage) Entries(lo, hi uint64) ([]*pb.Entry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Entries", lo, hi)
-	ret0, _ := ret[0].([]pb.Entry)
+	ret0, _ := ret[0].([]*pb.Entry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -149,7 +149,7 @@ func (mr *MockStorageMockRecorder) PersistHardState(st, cs interface{}) *gomock.
 }
 
 // PersistUnstableEnts mocks base method.
-func (m *MockStorage) PersistUnstableEnts(entries []pb.Entry) error {
+func (m *MockStorage) PersistUnstableEnts(entries []*pb.Entry) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PersistUnstableEnts", entries)
 	ret0, _ := ret[0].(error)

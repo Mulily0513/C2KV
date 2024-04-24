@@ -6,6 +6,7 @@ import (
 	"github.com/ColdToo/Cold2DB/db"
 	"github.com/ColdToo/Cold2DB/db/marshal"
 	"github.com/ColdToo/Cold2DB/pb"
+	"github.com/google/uuid"
 	"time"
 )
 
@@ -29,10 +30,9 @@ func NewKVService(proposeC chan<- []byte, confChangeC chan pb.ConfChange, raftCo
 	return s
 }
 
-func (s *KvService) Propose(key, val []byte, delete bool, expiredAt int64) (bool, error) {
+func (s *KvService) Propose(key, val []byte, delete bool) (bool, error) {
 	timeOutC := time.NewTimer(s.ReqTimeout)
-	// todo 重写一个获取全局递增的ID函数
-	uid := time.Now().UnixNano()
+	uid := int64(uuid.New().ID())
 	kv := new(marshal.KV)
 	kv.Key = key
 	kv.Data.Value = val
@@ -48,13 +48,11 @@ func (s *KvService) Propose(key, val []byte, delete bool, expiredAt int64) (bool
 	sig := make(chan struct{})
 	s.monitorKV[uid] = sig
 
-	for {
-		select {
-		case <-sig:
-			return true, nil
-		case <-timeOutC.C:
-			return false, errors.New("request time out")
-		}
+	select {
+	case <-sig:
+		return true, nil
+	case <-timeOutC.C:
+		return false, errors.New("request time out")
 	}
 }
 

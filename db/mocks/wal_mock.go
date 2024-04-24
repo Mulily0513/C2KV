@@ -71,7 +71,7 @@ func genKVBytes(length int) []byte {
 func MarshalWALEntries(entries1 []*pb.Entry) (data []byte, bytesCount int) {
 	data = make([]byte, 0)
 	for _, e := range entries1 {
-		wEntBytes, n := marshal.EncodeWALEntry(*e)
+		wEntBytes, n := marshal.EncodeWALEntry(e)
 		data = append(data, wEntBytes...)
 		bytesCount += n
 	}

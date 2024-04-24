@@ -12,14 +12,6 @@ import (
 // index is unavailable because it predates the last snapshot.
 var ErrCompacted = errors.New("requested index is unavailable due to compaction")
 
-// ErrUnavailable is returned by Storage interface when the requested log entries
-// are unavailable.
-var ErrUnavailable = errors.New("requested entry at index is unavailable")
-
-// ErrSnapshotTemporarilyUnavailable is returned by the Storage interface when the required
-// snapshot is temporarily unavailable.
-var ErrSnapshotTemporarilyUnavailable = errors.New("snapshot is temporarily unavailable")
-
 //  log structure
 //  ......persist................applied|first.................committed.................stabled....................last
 //	--------|--------mem-table----------|--------------------storage slice------------------|-----raft log slice------|
@@ -38,14 +30,14 @@ type raftLog struct {
 	// raftLog在创建时，会将unstable的offset置为storage的last index + 1，
 	offset uint64
 
-	unstableEnts []pb.Entry
+	unstableEnts []*pb.Entry
 
 	storage db.Storage
 }
 
 func newRaftLog(storage db.Storage) (r *raftLog) {
 	r = &raftLog{storage: storage}
-	r.unstableEnts = make([]pb.Entry, 0)
+	r.unstableEnts = make([]*pb.Entry, 0)
 	r.stabled = storage.StableIndex()
 	r.offset = r.stabled + 1
 	r.applied = storage.AppliedIndex()
@@ -95,7 +87,7 @@ func (l *raftLog) term(i uint64) (uint64, error) {
 }
 
 // Entries 获取指定index之后的日志切片
-func (l *raftLog) entries(i uint64) (ents []pb.Entry, err error) {
+func (l *raftLog) entries(i uint64) (ents []*pb.Entry, err error) {
 	if i > l.lastIndex() {
 		return nil, code.ErrUnavailable
 	}
@@ -103,7 +95,7 @@ func (l *raftLog) entries(i uint64) (ents []pb.Entry, err error) {
 }
 
 // slice returns a slice of log entries from lo through hi-1, [lo,hi)
-func (l *raftLog) slice(lo, hi uint64) ([]pb.Entry, error) {
+func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 	if lo == hi {
 		return nil, nil
 	}
@@ -112,7 +104,7 @@ func (l *raftLog) slice(lo, hi uint64) ([]pb.Entry, error) {
 		return nil, err
 	}
 
-	var ents []pb.Entry
+	var ents []*pb.Entry
 	if lo < l.offset {
 		persistEnts, err := l.storage.Entries(lo, min(hi, l.offset))
 		if err == ErrCompacted {
@@ -129,7 +121,7 @@ func (l *raftLog) slice(lo, hi uint64) ([]pb.Entry, error) {
 	if hi > l.offset {
 		unstableEnts := l.unstableEnts[max(lo, l.offset)-l.offset : hi-l.offset]
 		if len(ents) > 0 {
-			combined := make([]pb.Entry, len(ents)+len(unstableEnts))
+			combined := make([]*pb.Entry, len(ents)+len(unstableEnts))
 			n := copy(combined, ents)
 			copy(combined[n:], unstableEnts)
 			ents = combined
@@ -161,14 +153,14 @@ func (l *raftLog) mustCheckOutOfBounds(lo, hi uint64) error {
 
 // for ready
 
-func (l *raftLog) unstableEntries() []pb.Entry {
+func (l *raftLog) unstableEntries() []*pb.Entry {
 	if len(l.unstableEnts) == 0 {
 		return nil
 	}
 	return l.unstableEnts
 }
 
-func (l *raftLog) nextCommittedEnts() (ents []pb.Entry) {
+func (l *raftLog) nextCommittedEnts() (ents []*pb.Entry) {
 	//由于日志清理等原因，一些已应用的日志条目已被删除，实际下一条要应用的条目应该从 l.firstIndex() 开始计数。
 	//所以这里取applied和firstindex的最大值
 	off := max(l.applied+1, l.firstIndex())
@@ -190,7 +182,7 @@ func (l *raftLog) hasNextCommittedEnts() bool {
 // truncate append与maybeAppend是向raftLog写入日志的方法。
 // 二者的区别在于truncate append不会检查给定的日志切片是否与已有日志有冲突，leader会直接调用该方法
 // 因此leader向raftLog中追加日志时会调用truncate append；
-func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry) (lastnewi uint64, ok bool) {
+func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...*pb.Entry) (lastnewi uint64, ok bool) {
 	if l.matchTerm(index, logTerm) {
 		lastnewi = index + uint64(len(ents))
 		ci := l.findConflict(ents)
@@ -223,7 +215,7 @@ func (l *raftLog) matchTerm(i, term uint64) bool {
 // 如果给定的日志与已有的日志的index和term冲突，其会返回第一条冲突的日志条目的index。
 // 如果没有冲突，且给定的日志的所有条目均已在已有日志中，返回0.
 // 如果没有冲突，且给定的日志中包含已有日志中没有的新日志，返回第一条新日志的index。
-func (l *raftLog) findConflict(ents []pb.Entry) uint64 {
+func (l *raftLog) findConflict(ents []*pb.Entry) uint64 {
 	for _, ne := range ents {
 		if !l.matchTerm(ne.Index, ne.Term) {
 			if ne.Index <= l.lastIndex() {
@@ -235,7 +227,7 @@ func (l *raftLog) findConflict(ents []pb.Entry) uint64 {
 	return 0
 }
 
-func (l *raftLog) truncateAndAppend(ents []pb.Entry) {
+func (l *raftLog) truncateAndAppend(ents []*pb.Entry) {
 	after := ents[0].Index
 	//检查给定的日志起点是否在committed索引位置之前，如果在其之前，这违背了Raft算法的Log Matching性质
 	if after <= l.committed {
@@ -254,7 +246,7 @@ func (l *raftLog) truncateAndAppend(ents []pb.Entry) {
 		l.unstableEnts = ents
 	case after >= l.offset:
 		log.Debugf("truncate the unstable entries before index %d", after)
-		l.unstableEnts = append([]pb.Entry{}, l.unstableEnts[:after-l.offset]...)
+		l.unstableEnts = append([]*pb.Entry{}, l.unstableEnts[:after-l.offset]...)
 		l.unstableEnts = append(l.unstableEnts, ents...)
 	default:
 		log.Panicf("unexpected truncateAndAppend case")
@@ -344,7 +336,7 @@ func (l *raftLog) shrinkEntriesArray() {
 	if len(l.unstableEnts) == 0 {
 		l.unstableEnts = nil
 	} else if len(l.unstableEnts)*lenMultiple < cap(l.unstableEnts) {
-		newEntries := make([]pb.Entry, len(l.unstableEnts))
+		newEntries := make([]*pb.Entry, len(l.unstableEnts))
 		copy(newEntries, l.unstableEnts)
 		l.unstableEnts = newEntries
 	}

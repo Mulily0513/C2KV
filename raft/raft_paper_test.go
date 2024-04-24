@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-type messageSlice []pb.Message
+type messageSlice []*pb.Message
 
 func (s messageSlice) Len() int           { return len(s) }
 func (s messageSlice) Less(i, j int) bool { return fmt.Sprint(s[i]) < fmt.Sprint(s[j]) }
@@ -28,11 +28,7 @@ func RaftOpts(id uint64, peers []uint64, election, heartbeat int, storage db.Sto
 }
 
 func newTestRaft(id uint64, peers []uint64, election, heartbeat int, storage db.Storage) *raft {
-	r, err := newRaft(RaftOpts(id, peers, election, heartbeat, storage))
-	if err != nil {
-		panic(err)
-	}
-	return r
+	return newRaft(RaftOpts(id, peers, election, heartbeat, storage))
 }
 
 func MockStorage(t *testing.T, appliedIndex, fistIndex, stableIndex, expIdx, expTerm uint64, hs pb.HardState, cs pb.ConfState) db.Storage {
@@ -66,11 +62,11 @@ func commitNoopEntry(r *raft, s db.Storage) {
 	r.raftLog.stableTo(r.raftLog.lastIndex())
 }
 
-func acceptAndReply(m pb.Message) pb.Message {
+func acceptAndReply(m *pb.Message) *pb.Message {
 	if m.Type != pb.MsgApp {
 		panic("type should be MsgApp")
 	}
-	return pb.Message{
+	return &pb.Message{
 		From:  m.To,
 		To:    m.From,
 		Term:  m.Term,
@@ -111,7 +107,7 @@ func testUpdateTermFromMessage(t *testing.T, state StateType) {
 	case StateCandidate:
 		r.becomeCandidate()
 	}
-	r.Step(pb.Message{Type: pb.MsgApp, Term: 2})
+	r.Step(&pb.Message{Type: pb.MsgApp, Term: 2})
 
 	if r.Term != 2 {
 		t.Errorf("term = %d, want %d", r.Term, 2)
@@ -145,9 +141,9 @@ func TestLeaderBcastBeat2AA(t *testing.T) {
 	}
 }
 
-func (r *raft) readMessages() []pb.Message {
+func (r *raft) readMessages() []*pb.Message {
 	msgs := r.msgs
-	r.msgs = make([]pb.Message, 0)
+	r.msgs = make([]*pb.Message, 0)
 	return msgs
 }
 
@@ -236,9 +232,9 @@ func TestElectionInOneRoundRPC2AA(t *testing.T) {
 	for i, tt := range tests {
 		r := newTestRaft(1, idsBySize(tt.size), 10, 1, MockStorage(t, 0, 0, 0, ignore, ignore, pb.HardState{}, pb.ConfState{}))
 
-		r.Step(pb.Message{From: 1, To: 1, Type: pb.MsgHup})
+		r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgHup})
 		for id, vote := range tt.votes {
-			r.Step(pb.Message{From: id, To: 1, Term: r.Term, Type: pb.MsgVoteResp, Reject: !vote})
+			r.Step(&pb.Message{From: id, To: 1, Term: r.Term, Type: pb.MsgVoteResp, Reject: !vote})
 		}
 
 		if r.state != tt.state {
@@ -272,7 +268,7 @@ func TestFollowerVote2AA(t *testing.T) {
 		r.Term = 1
 		r.vote = tt.vote
 
-		r.Step(pb.Message{From: tt.nvote, To: 1, Term: 1, Type: pb.MsgVote})
+		r.Step(&pb.Message{From: tt.nvote, To: 1, Term: 1, Type: pb.MsgVote})
 
 		msgs := r.readMessages()
 		wmsgs := []pb.Message{
@@ -291,13 +287,13 @@ func TestFollowerVote2AA(t *testing.T) {
 // Reference: section 5.2
 func TestCandidateFallback2AA(t *testing.T) {
 	InitLog()
-	tests := []pb.Message{
+	tests := []*pb.Message{
 		{From: 2, To: 1, Term: 1, Type: pb.MsgApp},
 		{From: 2, To: 1, Term: 2, Type: pb.MsgApp},
 	}
 	for i, tt := range tests {
 		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, MockStorage(t, 0, 0, 0, ignore, ignore, pb.HardState{}, pb.ConfState{}))
-		r.Step(pb.Message{From: 1, To: 1, Type: pb.MsgHup})
+		r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgHup})
 		if r.state != StateCandidate {
 			t.Fatalf("unexpected state = %s, want %s", r.state, StateCandidate)
 		}
@@ -379,7 +375,7 @@ func TestLeaderStartReplication(t *testing.T) {
 	li := r.raftLog.lastIndex()
 
 	ents := []pb.Entry{{Data: []byte("some data")}}
-	r.Step(pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: ents})
+	r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: ents})
 
 	if g := r.raftLog.lastIndex(); g != li+1 {
 		t.Errorf("lastIndex = %d, want %d", g, li+1)
@@ -417,7 +413,7 @@ func TestLeaderCommitEntry(t *testing.T) {
 	r.becomeLeader()
 	commitNoopEntry(r, s)
 	li := r.raftLog.lastIndex()
-	r.Step(pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{Data: []byte("some data")}}})
+	r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{Data: []byte("some data")}}})
 
 	for _, m := range r.readMessages() {
 		r.Step(acceptAndReply(m))

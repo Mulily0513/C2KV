@@ -457,7 +457,7 @@ func (r *raft) appendEntry(es ...pb.Entry) {
 		es[i].Term = r.Term
 		es[i].Index = li + 1 + uint64(i)
 	}
-	r.raftLog.truncateAndAppend(es)
+	r.raftLog.truncateAndAppend(transEnt2Cursor(es))
 }
 
 func (r *raft) bcastAppend() {
@@ -484,7 +484,7 @@ func (r *raft) sendAppend(to uint64) {
 	m.To = to
 	m.Index = prevLogIndex
 	m.LogTerm = prevLogTerm
-	m.Entries = ents
+	m.Entries = transEnt2Value(ents)
 	m.Commit = r.raftLog.committed
 	r.send(m)
 	return
@@ -511,7 +511,7 @@ func (r *raft) handleAppendEntries(m *pb.Message) {
 		return
 	}
 
-	if mlastIndex, ok := r.raftLog.maybeAppend(m.Index, m.LogTerm, m.Commit, m.Entries...); ok {
+	if mlastIndex, ok := r.raftLog.maybeAppend(m.Index, m.LogTerm, m.Commit, transEnt2Cursor(m.Entries)...); ok {
 		r.send(&pb.Message{To: m.From, Type: pb.MsgAppResp, Index: mlastIndex})
 		return
 	}

@@ -58,7 +58,7 @@ func (h *HttpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		ok, err := h.kvsService.Propose([]byte(key), v, false, 0)
+		ok, err := h.kvsService.Propose([]byte(key), v, false)
 		if err != nil {
 			return
 		}
@@ -67,7 +67,7 @@ func (h *HttpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case r.Method == DELETE:
-		ok, err := h.kvsService.Propose([]byte(key), nil, true, 0)
+		ok, err := h.kvsService.Propose([]byte(key), nil, true)
 		if err != nil {
 			return
 		}

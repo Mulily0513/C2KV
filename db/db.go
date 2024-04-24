@@ -23,7 +23,7 @@ type Storage interface {
 	PersistHardState(st pb.HardState, cs pb.ConfState) error
 	InitialState() (pb.HardState, pb.ConfState)
 
-	Entries(lo, hi uint64) ([]pb.Entry, error)
+	Entries(lo, hi uint64) ([]*pb.Entry, error)
 	Term(i uint64) (uint64, error)
 	FirstIndex() uint64
 	AppliedIndex() uint64
@@ -85,7 +85,7 @@ func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 	C2.immtableQ = NewMemTableQueue(dbCfg.MemConfig.MemTableNums)
 	C2.activeMem = NewMemTable(dbCfg.MemConfig)
 	C2.memFlushC = memFlushC
-	C2.entries = make([]pb.Entry, 0)
+	C2.entries = make([]*pb.Entry, 0)
 	if C2.wal, err = wal.NewWal(dbCfg.WalConfig); err != nil {
 		log.Panicf("open wal failed", err)
 	}
@@ -327,7 +327,7 @@ func (db *C2KV) Truncate(index uint64) error {
 	return db.wal.Truncate(index)
 }
 
-func (db *C2KV) Entries(lo, hi uint64) (entries []pb.Entry, err error) {
+func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
 	if lo < db.firstIndex() || hi > db.lastIndex() {
 		return nil, errors.New("some entries is compacted")
 	}

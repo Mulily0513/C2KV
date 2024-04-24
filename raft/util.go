@@ -100,26 +100,20 @@ func DescribeReady(rd Ready, f EntryFormatter) string {
 		fmt.Fprintf(&buf, "HardState %s", DescribeHardState(rd.HardState))
 		buf.WriteByte('\n')
 	}
-	if len(rd.Entries) > 0 {
-		buf.WriteString("Entries:\n")
-		fmt.Fprint(&buf, DescribeEntries(rd.Entries, f))
-	}
-	if !IsEmptySnap(rd.Snapshot) {
-		fmt.Fprintf(&buf, "Snapshot %s\n", DescribeSnapshot(rd.Snapshot))
-	}
-	if len(rd.CommittedEntries) > 0 {
-		buf.WriteString("CommittedEntries:\n")
-		fmt.Fprint(&buf, DescribeEntries(rd.CommittedEntries, f))
-	}
+	//if len(rd.UnstableEntries) > 0 {
+	//	buf.WriteString("Entries:\n")
+	//	fmt.Fprint(&buf, DescribeEntries(rd.UnstableEntries, f))
+	//}
+	//if len(rd.CommittedEntries) > 0 {
+	//	buf.WriteString("CommittedEntries:\n")
+	//	fmt.Fprint(&buf, DescribeEntries(rd.CommittedEntries, f))
+	//}
 	if len(rd.Messages) > 0 {
 		buf.WriteString("Messages:\n")
 		for _, msg := range rd.Messages {
 			fmt.Fprint(&buf, DescribeMessage(msg, f))
 			buf.WriteByte('\n')
 		}
-	}
-	if buf.Len() > 0 {
-		return fmt.Sprintf("Ready MustSync=%t:\n%s", rd.MustSync, buf.String())
 	}
 	return "<empty Ready>"
 }
@@ -130,7 +124,7 @@ type EntryFormatter func([]byte) string
 
 // DescribeMessage returns a concise human-readable description of a
 // Message for debugging.
-func DescribeMessage(m pb.Message, f EntryFormatter) string {
+func DescribeMessage(m *pb.Message, f EntryFormatter) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "%x->%x %v Term:%d Log:%d/%d", m.From, m.To, m.Type, m.Term, m.LogTerm, m.Index)
 	if m.Reject {
@@ -225,4 +219,20 @@ func limitSize(ents []pb.Entry, maxSize uint64) []pb.Entry {
 		}
 	}
 	return ents[:limit]
+}
+
+func transEnt2Cursor(ent []pb.Entry) []*pb.Entry {
+	trans := make([]*pb.Entry, len(ent))
+	for i := range ent {
+		trans[i] = &ent[i]
+	}
+	return trans
+}
+
+func transEnt2Value(ent []*pb.Entry) []pb.Entry {
+	trans := make([]pb.Entry, len(ent))
+	for i := range ent {
+		trans[i] = *ent[i]
+	}
+	return trans
 }

@@ -27,6 +27,33 @@ type BytesKV struct {
 	Value []byte
 }
 
+type KV struct {
+	ApplySig int64 //该条记录是否被应用
+	KeySize  int
+	Key      []byte
+	Data     *Data
+}
+
+func EncodeKV(kv *KV) []byte {
+	dataBytes := EncodeData(kv.Data) // Serialize Data struct
+	keyLen := len(kv.Key)
+	buf := make([]byte, ApplySigSize+KeySize+keyLen+len(dataBytes))
+	binary.LittleEndian.PutUint64(buf[:ApplySigSize], uint64(kv.ApplySig))
+	binary.LittleEndian.PutUint32(buf[ApplySigSize:ApplySigSize+KeySize], uint32(keyLen))
+	copy(buf[ApplySigSize+KeySize:], kv.Key)
+	copy(buf[ApplySigSize+KeySize+keyLen:], dataBytes)
+	return buf
+}
+
+func DecodeKV(data []byte) (kv *KV) {
+	kv = &KV{}
+	kv.ApplySig = int64(binary.LittleEndian.Uint64(data[:ApplySigSize]))
+	kv.KeySize = int(binary.LittleEndian.Uint32(data[ApplySigSize : ApplySigSize+KeySize]))
+	kv.Key = data[ApplySigSize+KeySize : ApplySigSize+KeySize+kv.KeySize]
+	kv.Data = DecodeData(data[ApplySigSize+KeySize+kv.KeySize:])
+	return kv
+}
+
 type Data struct {
 	Index     uint64
 	TimeStamp int64
@@ -52,33 +79,6 @@ func DecodeData(v []byte) *Data {
 	return data
 }
 
-type KV struct {
-	ApplySig int64 //该条记录是否被应用
-	KeySize  int   //用于kv的序列化
-	Key      []byte
-	Data     *Data
-}
-
-func EncodeKV(kv *KV) []byte {
-	dataBytes := EncodeData(kv.Data) // Serialize Data struct
-	keyLen := len(kv.Key)
-	buf := make([]byte, ApplySigSize+KeySize+keyLen+len(dataBytes))
-	binary.LittleEndian.PutUint64(buf[:ApplySigSize], uint64(kv.ApplySig))
-	binary.LittleEndian.PutUint32(buf[ApplySigSize:ApplySigSize+KeySize], uint32(keyLen))
-	copy(buf[ApplySigSize+KeySize:], kv.Key)
-	copy(buf[ApplySigSize+KeySize+keyLen:], dataBytes)
-	return buf
-}
-
-func DecodeKV(data []byte) (kv *KV) {
-	kv = &KV{}
-	kv.ApplySig = int64(binary.LittleEndian.Uint64(data[:ApplySigSize]))
-	kv.KeySize = int(binary.LittleEndian.Uint32(data[ApplySigSize : ApplySigSize+KeySize]))
-	kv.Key = data[ApplySigSize+KeySize : ApplySigSize+KeySize+kv.KeySize]
-	kv.Data = DecodeData(data[ApplySigSize+KeySize+kv.KeySize:])
-	return kv
-}
-
 // EncodeWALEntry  will encode entry into a byte slice.
 // +-------+-----------+--------+-----------+
 // |  crc  | entry size|  index |   entry
@@ -95,7 +95,7 @@ func (h WalEntryHeader) IsEmpty() bool {
 	return h.Crc32 == 0 || h.EntrySize == 0 || h.Index == 0
 }
 
-func EncodeWALEntry(e pb.Entry) ([]byte, int) {
+func EncodeWALEntry(e *pb.Entry) ([]byte, int) {
 	eBytes, _ := e.Marshal()
 	eBytesSize := len(eBytes)
 	var size = ChunkHeaderSize + eBytesSize
