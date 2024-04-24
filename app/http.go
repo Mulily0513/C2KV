@@ -77,13 +77,7 @@ func (h *HttpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		//更改节点配置相关
 	case r.Method == POST:
-		_, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Failed on PUT", http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-
+		//todo
 	default:
 		http.Error(w, "Method not allowed,Only support put、get、post、delete", http.StatusMethodNotAllowed)
 	}

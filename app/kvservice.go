@@ -9,12 +9,6 @@ import (
 	"time"
 )
 
-type ConfChangeInfo struct {
-	NodeIP string            `json:"node_ip"`
-	NodeId uint64            `json:"node_id"`
-	NodeOp pb.ConfChangeType `json:"node_op"`
-}
-
 type KvService struct {
 	storage     db.Storage
 	proposeC    chan<- []byte
@@ -23,7 +17,7 @@ type KvService struct {
 	ReqTimeout  time.Duration
 }
 
-func NewKVService(proposeC chan<- []byte, confChangeC chan pb.ConfChange, raftConfig *config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}) *KvService {
+func NewKVService(proposeC chan<- []byte, confChangeC chan pb.ConfChange, raftConfig *config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}) *KvService {
 	s := &KvService{
 		storage:     kvStorage,
 		proposeC:    proposeC,
@@ -31,6 +25,7 @@ func NewKVService(proposeC chan<- []byte, confChangeC chan pb.ConfChange, raftCo
 		ReqTimeout:  time.Duration(raftConfig.RequestTimeout) * time.Second,
 		confChangeC: confChangeC,
 	}
+	ServeKVAPI(s, localEAddr, kvServiceStopC)
 	return s
 }
 
@@ -80,8 +75,4 @@ func (s *KvService) Scan(lowKey, highKey []byte) ([]*marshal.BytesKV, error) {
 		return nil, err
 	}
 	return nil, nil
-}
-
-func (s *KvService) ConfChangePropose(nodeOp pb.ConfChangeType, nodeId uint64) (bool, error) {
-	return false, nil
 }

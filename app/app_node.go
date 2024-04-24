@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"github.com/ColdToo/Cold2DB/config"
 	"github.com/ColdToo/Cold2DB/db"
 	"github.com/ColdToo/Cold2DB/db/marshal"
@@ -114,7 +113,7 @@ func (an *AppNode) servePropCAndConfC() {
 	for an.proposeC != nil {
 		select {
 		case prop := <-an.proposeC:
-			if err := an.raftNode.Propose(context.TODO(), prop); err != nil {
+			if err := an.raftNode.Propose(prop); err != nil {
 				log.Errorf("propose err", err)
 			}
 		}
@@ -159,7 +158,7 @@ func (an *AppNode) applyCommittedEnts(ents []pb.Entry) (err error) {
 
 // Process Rat网络层接口,网络层通过该接口与RaftNode交互
 func (an *AppNode) Process(m *pb.Message) error {
-	return an.raftNode.Step(context.TODO(), *m)
+	return an.raftNode.Step(m)
 }
 
 func (an *AppNode) ReportUnreachable(id uint64) { an.raftNode.ReportUnreachable(id) }

@@ -111,7 +111,7 @@ type raft struct {
 	//用于追踪节点的相关信息
 	trk tracker.ProgressTracker
 	//需要发送给其他节点的消息
-	msgs []pb.Message
+	msgs []*pb.Message
 	//不同角色指向不同的stepFunc
 	stepFunc stepFunc
 	//不同角色指向不同的tick驱动函数
@@ -139,7 +139,7 @@ func newRaft(opts *raftOpts) (r *raft) {
 		lead:             None,
 		raftLog:          newRaftLog(opts.storage),
 		trk:              trk,
-		msgs:             make([]pb.Message, 0),
+		msgs:             make([]*pb.Message, 0),
 		electionTimeout:  opts.electionTimeout,
 		heartbeatTimeout: opts.heartbeatTimeout,
 	}
@@ -227,7 +227,7 @@ func (r *raft) tickElection() {
 	r.electionElapsed++
 	if r.promotable() && r.electionElapsed >= r.randomizedElectionTimeout {
 		r.electionElapsed = 0
-		r.Step(pb.Message{From: r.id, Type: pb.MsgHup})
+		r.Step(&pb.Message{From: r.id, Type: pb.MsgHup})
 	}
 }
 
@@ -246,11 +246,11 @@ func (r *raft) tickHeartbeat() {
 	//心跳超时，发送心跳
 	if r.heartbeatElapsed >= r.heartbeatTimeout {
 		r.heartbeatElapsed = 0
-		r.Step(pb.Message{From: r.id, Type: pb.MsgBeat})
+		r.Step(&pb.Message{From: r.id, Type: pb.MsgBeat})
 	}
 }
 
-func (r *raft) Step(m pb.Message) error {
+func (r *raft) Step(m *pb.Message) error {
 	switch {
 	// local message
 	case m.Term == 0:
@@ -271,13 +271,13 @@ func (r *raft) Step(m pb.Message) error {
 		if canVote && r.raftLog.isUpToDate(m.Index, m.LogTerm) {
 			log.Infof("%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
-			r.send(pb.Message{From: r.id, To: m.From, Term: m.Term, Type: voteRespMsgType(m.Type), Reject: false})
+			r.send(&pb.Message{From: r.id, To: m.From, Term: m.Term, Type: voteRespMsgType(m.Type), Reject: false})
 			r.electionElapsed = 0
 			r.vote = m.From
 		} else {
 			log.Infof("%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
-			r.send(pb.Message{From: r.id, To: m.From, Term: r.Term, Type: voteRespMsgType(m.Type), Reject: true})
+			r.send(&pb.Message{From: r.id, To: m.From, Term: r.Term, Type: voteRespMsgType(m.Type), Reject: true})
 		}
 	default:
 		return r.stepFunc(r, m)
@@ -285,9 +285,9 @@ func (r *raft) Step(m pb.Message) error {
 	return nil
 }
 
-type stepFunc func(r *raft, m pb.Message) error
+type stepFunc func(r *raft, m *pb.Message) error
 
-func stepLeader(r *raft, m pb.Message) error {
+func stepLeader(r *raft, m *pb.Message) error {
 	// These message types do not require any progress for m.From.
 	switch m.Type {
 	case pb.MsgBeat:
@@ -313,7 +313,7 @@ func stepLeader(r *raft, m pb.Message) error {
 	return nil
 }
 
-func stepFollower(r *raft, m pb.Message) error {
+func stepFollower(r *raft, m *pb.Message) error {
 	switch m.Type {
 	case pb.MsgHeartbeat:
 		r.handleHeartbeat(m)
@@ -323,7 +323,7 @@ func stepFollower(r *raft, m pb.Message) error {
 	return nil
 }
 
-func stepCandidate(r *raft, m pb.Message) error {
+func stepCandidate(r *raft, m *pb.Message) error {
 	switch m.Type {
 	case pb.MsgApp:
 		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
@@ -365,7 +365,7 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 	if !ok {
 		log.Panic("peer not in the cluster")
 	}
-	m := pb.Message{
+	m := &pb.Message{
 		From:    r.id,
 		To:      to,
 		Type:    pb.MsgHeartbeat,
@@ -377,7 +377,7 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 	r.send(m)
 }
 
-func (r *raft) handleHeartbeatResponse(m pb.Message, pr *tracker.Progress) {
+func (r *raft) handleHeartbeatResponse(m *pb.Message, pr *tracker.Progress) {
 	pr.RecentActive = true
 	pr.ProbeSent = false
 
@@ -389,23 +389,19 @@ func (r *raft) handleHeartbeatResponse(m pb.Message, pr *tracker.Progress) {
 	return
 }
 
-func (r *raft) handleSnapStatus(m pb.Message, pr *tracker.Progress) (err error) {
+func (r *raft) handleSnapStatus(m *pb.Message, pr *tracker.Progress) (err error) {
 	//todo
 	return err
 }
 
-func (r *raft) handleMsgUnreachableStatus(m pb.Message, pr *tracker.Progress) {
+func (r *raft) handleMsgUnreachableStatus(m *pb.Message, pr *tracker.Progress) {
 	if pr.State == tracker.StateReplicate {
 		pr.BecomeProbe()
 	}
 	log.Debugf("%x failed to send message to %x because it is unreachable [%s]", r.id, m.From, pr)
 }
 
-func (r *raft) sendTimeoutNow(to uint64) {
-	r.send(pb.Message{To: to, Type: pb.MsgTimeoutNow})
-}
-
-func (r *raft) handleAppendResponse(m pb.Message, pr *tracker.Progress) {
+func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
 	pr.RecentActive = true
 	if m.Reject {
 		log.Debugf("%x received MsgAppResp(rejected, hint: (index %d, term %d)) from %x for index %d", r.id, m.RejectHint, m.LogTerm, m.From, m.Index)
@@ -470,7 +466,7 @@ func (r *raft) handleAppendResponse(m pb.Message, pr *tracker.Progress) {
 
 }
 
-func (r *raft) handlePropMsg(m pb.Message) error {
+func (r *raft) handlePropMsg(m *pb.Message) error {
 	if len(m.Entries) == 0 {
 		log.Panicf("%x stepped empty MsgProp", r.id)
 	}
@@ -509,7 +505,7 @@ func (r *raft) bcastAppend() {
 
 func (r *raft) sendAppend(to uint64) {
 	pr := r.trk.Progress[to]
-	m := pb.Message{To: to}
+	m := &pb.Message{To: to}
 	prevLogIndex := pr.Next - 1
 	prevLogTerm, errt := r.raftLog.term(prevLogIndex)
 	ents, erre := r.raftLog.slice(pr.Next, r.raftLog.lastIndex()+1)
@@ -538,23 +534,23 @@ func (r *raft) maybeCommit() bool {
 
 // ------------------ follower behavior ------------------
 
-func (r *raft) handleHeartbeat(m pb.Message) {
+func (r *raft) handleHeartbeat(m *pb.Message) {
 	r.electionElapsed = 0
 	r.lead = m.From
 	r.raftLog.commitTo(m.Commit)
-	r.send(pb.Message{To: m.From, Type: pb.MsgHeartbeatResp, Context: m.Context})
+	r.send(&pb.Message{To: m.From, Type: pb.MsgHeartbeatResp, Context: m.Context})
 }
 
-func (r *raft) handleAppendEntries(m pb.Message) {
+func (r *raft) handleAppendEntries(m *pb.Message) {
 	//如果用于日志匹配的条目在committed之前，说明这是一条过期的消息，因此直接返回MsgAppResp消息，
 	//并将消息的Index字段置为committed的值，以让leader快速更新该follower的next index。
 	if m.Index < r.raftLog.committed {
-		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: r.raftLog.committed})
+		r.send(&pb.Message{To: m.From, Type: pb.MsgAppResp, Index: r.raftLog.committed})
 		return
 	}
 
 	if mlastIndex, ok := r.raftLog.maybeAppend(m.Index, m.LogTerm, m.Commit, m.Entries...); ok {
-		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: mlastIndex})
+		r.send(&pb.Message{To: m.From, Type: pb.MsgAppResp, Index: mlastIndex})
 		return
 	}
 
@@ -615,11 +611,11 @@ func (r *raft) campaign() {
 		}
 		log.Infof("%x [logterm: %d, index: %d] sent %s request to %x at term %d",
 			r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
-		r.send(pb.Message{Term: r.Term, From: r.id, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
+		r.send(&pb.Message{Term: r.Term, From: r.id, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }
 
-func (r *raft) handleRequestVoteResponse(m pb.Message) {
+func (r *raft) handleRequestVoteResponse(m *pb.Message) {
 	gr, rj, res := r.poll(m.From, m.Type, !m.Reject)
 	log.Infof("%x has received %d %s votes and %d vote rejections", r.id, gr, m.Type, rj)
 	switch res {
@@ -640,7 +636,7 @@ func (r *raft) sendAllRequestVote() {
 		log.Infof("%x [logterm: %d, index: %d] sent %s request to %x at term %d",
 			r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
 
-		r.send(pb.Message{Term: r.Term, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
+		r.send(&pb.Message{Term: r.Term, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }
 
@@ -673,18 +669,17 @@ func (r *raft) resetRandomizedElectionTimeout() {
 	r.randomizedElectionTimeout = r.electionTimeout + globalRand.Intn(r.electionTimeout)
 }
 
-func (r *raft) send(m pb.Message) {
+func (r *raft) send(m *pb.Message) {
 	r.msgs = append(r.msgs, m)
 }
 
-func (r *raft) advance(rd Ready) {
-	if newApplied := rd.appliedCursor(); newApplied > 0 {
+func (r *raft) advance() {
+	if newApplied := r.raftLog.storage.AppliedIndex(); newApplied > 0 {
 		r.raftLog.appliedTo(newApplied)
 	}
 
-	if len(rd.Entries) > 0 {
-		e := rd.Entries[len(rd.Entries)-1]
-		r.raftLog.stableTo(e.Index)
+	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 {
+		r.raftLog.appliedTo(newStabled)
 	}
 }
 

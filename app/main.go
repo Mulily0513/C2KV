@@ -23,7 +23,6 @@ func main() {
 	monitorKV := make(map[int64]chan struct{})
 
 	localIAddr, localEAddr, localId, peers := config.GetLocalInfo()
-	kvStore := NewKVService(proposeC, confChangeC, raftConfig, kvStorage, monitorKV)
 	StartAppNode(localId, localIAddr, peers, proposeC, confChangeC, kvServiceStopC, kvStorage, raftConfig, monitorKV)
-	ServeKVAPI(kvStore, localEAddr, kvServiceStopC)
+	NewKVService(proposeC, confChangeC, raftConfig, kvStorage, monitorKV, localEAddr, kvServiceStopC)
 }
