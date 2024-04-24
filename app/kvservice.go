@@ -5,28 +5,25 @@ import (
 	"github.com/ColdToo/Cold2DB/config"
 	"github.com/ColdToo/Cold2DB/db"
 	"github.com/ColdToo/Cold2DB/db/marshal"
-	"github.com/ColdToo/Cold2DB/pb"
 	"github.com/google/uuid"
 	"time"
 )
 
 type KvService struct {
-	storage     db.Storage
-	proposeC    chan<- []byte
-	confChangeC chan pb.ConfChange
-	monitorKV   map[int64]chan struct{}
-	ReqTimeout  time.Duration
+	storage    db.Storage
+	proposeC   chan<- []byte
+	monitorKV  map[int64]chan struct{}
+	ReqTimeout time.Duration
 }
 
-func NewKVService(proposeC chan<- []byte, confChangeC chan pb.ConfChange, raftConfig *config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}) *KvService {
+func NewKVService(proposeC chan<- []byte, raftConfig *config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}) *KvService {
 	s := &KvService{
-		storage:     kvStorage,
-		proposeC:    proposeC,
-		monitorKV:   monitorKV,
-		ReqTimeout:  time.Duration(raftConfig.RequestTimeout) * time.Second,
-		confChangeC: confChangeC,
+		storage:    kvStorage,
+		proposeC:   proposeC,
+		monitorKV:  monitorKV,
+		ReqTimeout: time.Duration(raftConfig.RequestTimeout) * time.Second,
 	}
-	ServeKVAPI(s, localEAddr, kvServiceStopC)
+	ServeHTTPKVAPI(s, localEAddr, kvServiceStopC)
 	return s
 }
 
@@ -57,20 +54,11 @@ func (s *KvService) Propose(key, val []byte, delete bool) (bool, error) {
 }
 
 func (s *KvService) Lookup(key []byte) (*marshal.BytesKV, error) {
-	kv, err := s.storage.Get(key)
-
-	//handle error
-	if kv.Data.Type == marshal.TypeDelete {
-		return true, nil
-	}
-
-	return
+	//todo
+	return nil, nil
 }
 
 func (s *KvService) Scan(lowKey, highKey []byte) ([]*marshal.BytesKV, error) {
-	kvs, err := s.storage.Scan(lowKey, highKey)
-	if err != nil {
-		return nil, err
-	}
+	//todo
 	return nil, nil
 }

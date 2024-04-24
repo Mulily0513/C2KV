@@ -2,6 +2,7 @@ package db
 
 import (
 	"github.com/ColdToo/Cold2DB/db/marshal"
+	"github.com/ColdToo/Cold2DB/db/mocks"
 	"reflect"
 	"testing"
 
@@ -56,30 +57,6 @@ func TestMemTable_All(t *testing.T) {
 	reflect.DeepEqual(kvs, allKvs)
 }
 
-func TestMemTable_Queue(t *testing.T) {
-	queue := NewMemTableQueue(3)
-	table1 := &MemTable{}
-	table2 := &MemTable{}
-	table3 := &MemTable{}
-
-	queue.Enqueue(table1)
-	queue.Enqueue(table2)
-	queue.Enqueue(table3)
-
-	if queue.size != 3 {
-		t.Errorf("Expected queue size to be 3, but got %d", queue.size)
-	}
-
-	dequeuedTable := queue.Dequeue()
-	if dequeuedTable != table1 {
-		t.Error("Dequeued table does not match expected table")
-	}
-
-	if queue.size != 2 {
-		t.Errorf("Expected queue size to be 2 after dequeue, but got %d", queue.size)
-	}
-}
-
 func TestMemTable_Get(t *testing.T) {
 	kv := mocks.OneKV
 	mem := NewMemTable(TestMemConfig)
@@ -106,4 +83,28 @@ func TestMemTable_Get(t *testing.T) {
 		t.Error("should found")
 	}
 	reflect.DeepEqual(data1, kv2.Data)
+}
+
+func TestMemTable_Queue(t *testing.T) {
+	queue := NewMemTableQueue(3)
+	table1 := &MemTable{}
+	table2 := &MemTable{}
+	table3 := &MemTable{}
+
+	queue.Enqueue(table1)
+	queue.Enqueue(table2)
+	queue.Enqueue(table3)
+
+	if queue.size != 3 {
+		t.Errorf("Expected queue size to be 3, but got %d", queue.size)
+	}
+
+	dequeuedTable := queue.Dequeue()
+	if dequeuedTable != table1 {
+		t.Error("Dequeued table does not match expected table")
+	}
+
+	if queue.size != 2 {
+		t.Errorf("Expected queue size to be 2 after dequeue, but got %d", queue.size)
+	}
 }

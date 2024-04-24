@@ -118,8 +118,8 @@ func (an *AppNode) servePropCAndConfC() {
 	}
 }
 
-func (an *AppNode) applyCommittedEnts(ents []pb.Entry) (err error) {
-	entries := make([]pb.Entry, 0)
+func (an *AppNode) applyCommittedEnts(ents []*pb.Entry) (err error) {
+	entries := make([]*pb.Entry, 0)
 
 	//apply entries
 	for i, entry := range ents {
@@ -141,9 +141,7 @@ func (an *AppNode) applyCommittedEnts(ents []pb.Entry) (err error) {
 		kvIds = append(kvIds, kv.ApplySig)
 	}
 
-	err = an.kvStorage.Apply(kvs)
-	if err != nil {
-		log.Errorf("apply committed entries error", err)
+	if err = an.kvStorage.Apply(kvs); err != nil {
 		return
 	}
 
@@ -151,12 +149,13 @@ func (an *AppNode) applyCommittedEnts(ents []pb.Entry) (err error) {
 		close(an.monitorKV[id])
 		delete(an.monitorKV, id)
 	}
+
 	return
 }
 
 // Process Rat网络层接口,网络层通过该接口与RaftNode交互
-func (an *AppNode) Process(m *pb.Message) error {
-	return an.raftNode.Step(m)
+func (an *AppNode) Process(m *pb.Message) {
+	an.raftNode.Step(m)
 }
 
 func (an *AppNode) ReportUnreachable(id uint64) { an.raftNode.ReportUnreachable(id) }

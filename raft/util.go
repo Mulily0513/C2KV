@@ -92,14 +92,14 @@ func DescribeSnapshot(snap pb.Snapshot) string {
 
 func DescribeReady(rd Ready, f EntryFormatter) string {
 	var buf strings.Builder
-	if rd.SoftState != nil {
-		fmt.Fprint(&buf, DescribeSoftState(*rd.SoftState))
-		buf.WriteByte('\n')
-	}
-	if !IsEmptyHardState(rd.HardState) {
-		fmt.Fprintf(&buf, "HardState %s", DescribeHardState(rd.HardState))
-		buf.WriteByte('\n')
-	}
+	//if rd.SoftState != nil {
+	//	fmt.Fprint(&buf, DescribeSoftState(*rd.SoftState))
+	//	buf.WriteByte('\n')
+	//}
+	//if !IsEmptyHardState(rd.HardState) {
+	//	fmt.Fprintf(&buf, "HardState %s", DescribeHardState(rd.HardState))
+	//	buf.WriteByte('\n')
+	//}
 	//if len(rd.UnstableEntries) > 0 {
 	//	buf.WriteString("Entries:\n")
 	//	fmt.Fprint(&buf, DescribeEntries(rd.UnstableEntries, f))

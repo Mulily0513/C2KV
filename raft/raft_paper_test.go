@@ -42,6 +42,17 @@ func MockStorage(t *testing.T, appliedIndex, fistIndex, stableIndex, expIdx, exp
 	return storage
 }
 
+func MockStorageEnts(t *testing.T, appliedIndex, fistIndex, stableIndex, expIdx, expTerm uint64, hs pb.HardState, cs pb.ConfState) db.Storage {
+	mockCtl := gomock.NewController(t)
+	storage := mocks.NewMockStorage(mockCtl)
+	storage.EXPECT().FirstIndex().Return(fistIndex).AnyTimes()
+	storage.EXPECT().StableIndex().Return(stableIndex).AnyTimes()
+	storage.EXPECT().Term(expIdx).Return(expTerm, nil).AnyTimes()
+	storage.EXPECT().InitialState().Return(hs, cs).AnyTimes()
+	storage.EXPECT().AppliedIndex().Return(appliedIndex).AnyTimes()
+	return storage
+}
+
 func commitNoopEntry(r *raft, s db.Storage) {
 	if r.state != StateLeader {
 		panic("it should only be used when it is the leader")
@@ -124,15 +135,15 @@ func testUpdateTermFromMessage(t *testing.T, state StateType) {
 func TestLeaderBcastBeat2AA(t *testing.T) {
 	InitLog()
 	// heartbeat interval
-	hi := 1
-	r := newTestRaft(1, []uint64{1, 2, 3}, 10, hi, MockStorage(t, 0, 0, 0, ignore, ignore, pb.HardState{}, pb.ConfState{}))
+	heartbeat := 1
+	r := newTestRaft(1, []uint64{1, 2, 3}, 10, heartbeat, MockStorage(t, 0, 0, 0, ignore, ignore, pb.HardState{}, pb.ConfState{}))
 	r.becomeCandidate()
 	r.becomeLeader()
 	r.readMessages() // clear message
 	r.tick()
 	msgs := r.readMessages()
 	sort.Sort(messageSlice(msgs))
-	wmsgs := []pb.Message{
+	wmsgs := []*pb.Message{
 		{From: 1, To: 2, Term: 1, Type: pb.MsgHeartbeat},
 		{From: 1, To: 3, Term: 1, Type: pb.MsgHeartbeat},
 	}
@@ -194,7 +205,7 @@ func testNonleaderStartElection(t *testing.T, state StateType) {
 	}
 	msgs := r.readMessages()
 	sort.Sort(messageSlice(msgs))
-	wmsgs := []pb.Message{
+	wmsgs := []*pb.Message{
 		{From: 1, To: 2, Term: 2, Type: pb.MsgVote},
 		{From: 1, To: 3, Term: 2, Type: pb.MsgVote},
 	}
@@ -271,7 +282,7 @@ func TestFollowerVote2AA(t *testing.T) {
 		r.Step(&pb.Message{From: tt.nvote, To: 1, Term: 1, Type: pb.MsgVote})
 
 		msgs := r.readMessages()
-		wmsgs := []pb.Message{
+		wmsgs := []*pb.Message{
 			{From: 1, To: tt.nvote, Term: 1, Type: pb.MsgVoteResp, Reject: tt.wreject},
 		}
 		if !reflect.DeepEqual(msgs, wmsgs) {
@@ -386,7 +397,7 @@ func TestLeaderStartReplication(t *testing.T) {
 	msgs := r.readMessages()
 	sort.Sort(messageSlice(msgs))
 	wents := []pb.Entry{{Index: li + 1, Term: 1, Data: []byte("some data")}}
-	wmsgs := []pb.Message{
+	wmsgs := []*pb.Message{
 		{From: 1, To: 2, Term: 1, Type: pb.MsgApp, Index: li, LogTerm: 1, Entries: wents, Commit: li},
 		{From: 1, To: 3, Term: 1, Type: pb.MsgApp, Index: li, LogTerm: 1, Entries: wents, Commit: li},
 	}
@@ -422,7 +433,7 @@ func TestLeaderCommitEntry(t *testing.T) {
 	if g := r.raftLog.committed; g != li+1 {
 		t.Errorf("committed = %d, want %d", g, li+1)
 	}
-	wents := []pb.Entry{{Index: li + 1, Term: 1, Data: []byte("some data")}}
+	wents := []*pb.Entry{{Index: li + 1, Term: 1, Data: []byte("some data")}}
 	if g := r.raftLog.nextCommittedEnts(); !reflect.DeepEqual(g, wents) {
 		t.Errorf("nextEnts = %+v, want %+v", g, wents)
 	}

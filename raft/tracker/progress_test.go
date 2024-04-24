@@ -20,14 +20,13 @@ import (
 
 func TestProgressString(t *testing.T) {
 	pr := &Progress{
-		Match:           1,
-		Next:            2,
-		State:           StateSnapshot,
-		PendingSnapshot: 123,
-		RecentActive:    false,
-		ProbeSent:       true,
+		Match:        1,
+		Next:         2,
+		State:        StateSnapshot,
+		RecentActive: false,
+		ProbeSent:    true,
 	}
-	const exp = `StateSnapshot match=1 next=2 paused pendingSnap=123 inactive`
+	const exp = `StateSnapshot match=1 next=2 paused inactive`
 	if act := pr.String(); act != exp {
 		t.Errorf("exp: %s\nact: %s", exp, act)
 	}
@@ -65,6 +64,7 @@ func TestProgressResume(t *testing.T) {
 		Next:      2,
 		ProbeSent: true,
 	}
+	p.MaybeDecreaseTo(1, 1)
 	if p.ProbeSent {
 		t.Errorf("paused= %v, want false", p.ProbeSent)
 	}
@@ -83,16 +83,6 @@ func TestProgressBecomeProbe(t *testing.T) {
 	}{
 		{
 			&Progress{State: StateReplicate, Match: match, Next: 5},
-			2,
-		},
-		{
-			// snapshot finish
-			&Progress{State: StateSnapshot, Match: match, Next: 5, PendingSnapshot: 10},
-			11,
-		},
-		{
-			// snapshot failure
-			&Progress{State: StateSnapshot, Match: match, Next: 5, PendingSnapshot: 0},
 			2,
 		},
 	}
@@ -122,21 +112,6 @@ func TestProgressBecomeReplicate(t *testing.T) {
 	}
 	if w := p.Match + 1; p.Next != w {
 		t.Errorf("next = %d, want %d", p.Next, w)
-	}
-}
-
-func TestProgressBecomeSnapshot(t *testing.T) {
-	p := &Progress{State: StateProbe, Match: 1, Next: 5}
-	p.BecomeSnapshot(10)
-
-	if p.State != StateSnapshot {
-		t.Errorf("state = %s, want %s", p.State, StateSnapshot)
-	}
-	if p.Match != 1 {
-		t.Errorf("match = %d, want 1", p.Match)
-	}
-	if p.PendingSnapshot != 10 {
-		t.Errorf("pendingSnapshot = %d, want 10", p.PendingSnapshot)
 	}
 }
 

@@ -10,9 +10,7 @@ import (
 )
 
 var MockDBCfg = &config.DBConfig{
-	DBPath:           mocks.DBPath,
-	MemTableNums:     10,
-	MemTablePipeSize: 10,
+	DBPath: mocks.DBPath,
 	WalConfig: config.WalConfig{
 		WalDirPath: mocks.WALPath,
 	},
@@ -20,27 +18,24 @@ var MockDBCfg = &config.DBConfig{
 		ValueLogDir: mocks.ValueLogPath,
 	},
 	MemConfig: config.MemConfig{
-		MemTableSize: 60,
-		Concurrency:  3,
+		MemTableSize:     60,
+		Concurrency:      3,
+		MemTableNums:     10,
+		MemTablePipeSize: 10,
 	},
 }
 
 func MockKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 	dbCfgCheck(dbCfg)
 	C2 = new(C2KV)
-	var err error
 	C2.dbCfg = dbCfg
-	memFlushC := make(chan *MemTable, dbCfg.MemTableNums)
-	C2.memTablePipe = make(chan *MemTable, dbCfg.MemTablePipeSize)
-	C2.immtableQ = NewMemTableQueue(dbCfg.MemTableNums)
+	memFlushC := make(chan *MemTable, dbCfg.MemConfig.MemTableNums)
+	C2.memTablePipe = make(chan *MemTable, dbCfg.MemConfig.MemTablePipeSize)
+	C2.immtableQ = NewMemTableQueue(dbCfg.MemConfig.MemTableNums)
 	C2.activeMem = NewMemTable(dbCfg.MemConfig)
 	C2.memFlushC = memFlushC
-	if C2.wal, err = wal.NewWal(dbCfg.WalConfig); err != nil {
-		println(err)
-	}
-	if C2.valueLog, err = OpenValueLog(dbCfg.ValueLogConfig, memFlushC, C2.wal.KVStateSegment); err != nil {
-		println(err)
-	}
+	C2.wal = wal.NewWal(dbCfg.WalConfig)
+	C2.valueLog = OpenValueLog(dbCfg.ValueLogConfig, memFlushC, C2.wal.KVStateSegment)
 	go func() {
 		for {
 			C2.memTablePipe <- NewMemTable(dbCfg.MemConfig)
@@ -88,7 +83,7 @@ func TestKVStorage_RestoreImMemFromWAL(t *testing.T) {
 func TestKVStorage_KVOperate_GET(t *testing.T) {
 	kvs := mocks.KVS_RAND_27KB_HASDEL_UQKey
 	C2KV := MockKVStorage(MockDBCfg)
-	err := C2KV.Put(kvs)
+	err := C2KV.Apply(kvs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -106,7 +101,7 @@ func TestKVStorage_KVOperate_GET(t *testing.T) {
 func TestKVStorage_KVOperate_SCAN(t *testing.T) {
 	kvs := mocks.KVS_RAND_27KB_HASDEL_UQKey
 	C2KV := MockKVStorage(MockDBCfg)
-	err := C2KV.Put(kvs)
+	err := C2KV.Apply(kvs)
 	if err != nil {
 		t.Error(err)
 	}

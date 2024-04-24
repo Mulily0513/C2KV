@@ -24,5 +24,5 @@ func main() {
 
 	localIAddr, localEAddr, localId, peers := config.GetLocalInfo()
 	StartAppNode(localId, localIAddr, peers, proposeC, confChangeC, kvServiceStopC, kvStorage, raftConfig, monitorKV)
-	NewKVService(proposeC, confChangeC, raftConfig, kvStorage, monitorKV, localEAddr, kvServiceStopC)
+	NewKVService(proposeC, raftConfig, kvStorage, monitorKV, localEAddr, kvServiceStopC)
 }

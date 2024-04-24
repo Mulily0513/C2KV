@@ -28,7 +28,7 @@ type ValueLog struct {
 	partitions []*partition.Partition
 }
 
-func OpenValueLog(vlogCfg config.ValueLogConfig, tableC chan *MemTable, stateSegment *wal.KVStateSegment) (vlog *ValueLog, err error) {
+func OpenValueLog(vlogCfg config.ValueLogConfig, tableC chan *MemTable, stateSegment *wal.KVStateSegment) (vlog *ValueLog) {
 	dirs, err := os.ReadDir(vlogCfg.ValueLogDir)
 	if err != nil {
 		log.Panicf("open wal dir failed", err)

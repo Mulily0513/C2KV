@@ -31,10 +31,10 @@ type WAL struct {
 	KVStateSegment   *KVStateSegment   //保存需要持久化的kv相关状态
 }
 
-func NewWal(config config.WalConfig) (*WAL, error) {
+func NewWal(config config.WalConfig) *WAL {
 	acSegment, err := NewSegmentFile(config.WalDirPath, config.SegmentSize)
 	if err != nil {
-		return nil, err
+		log.Panicf("create a new segment file error", err)
 	}
 
 	segmentPipe := make(chan *segment, 5)
@@ -58,7 +58,7 @@ func NewWal(config config.WalConfig) (*WAL, error) {
 
 	files, err := os.ReadDir(wal.WalDirPath)
 	if err != nil {
-		return nil, err
+		log.Panicf("read wal dir error", err)
 	}
 
 	var id uint64
@@ -66,42 +66,41 @@ func NewWal(config config.WalConfig) (*WAL, error) {
 		fName := file.Name()
 		if strings.HasSuffix(fName, SegSuffix) {
 			if _, err = fmt.Sscanf(fName, "%d.SEG", &id); err != nil {
-				return nil, err
+				log.Panicf("scan segment file id error", err)
 			}
 			segmentFile, err := OpenOldSegmentFile(wal.WalDirPath, id)
 			if err != nil {
-				return nil, err
+				log.Panicf("open old segment file error", err)
 			}
 			wal.OrderSegmentList.Insert(segmentFile)
 		}
 
 		if strings.HasSuffix(fName, RaftSuffix) {
 			if wal.RaftStateSegment, err = OpenRaftStateSegment(wal.WalDirPath, file.Name()); err != nil {
-				return nil, err
+				log.Panicf("open old raft state segment file error", err)
 			}
 		}
+
 		if strings.HasSuffix(fName, KVSuffix) {
 			if wal.KVStateSegment, err = OpenKVStateSegment(wal.WalDirPath, file.Name()); err != nil {
-				return nil, err
+				log.Panicf("open old kv state segment file error", err)
 			}
 		}
 	}
 
 	if wal.RaftStateSegment == nil {
-		wal.RaftStateSegment, err = OpenRaftStateSegment(wal.WalDirPath, time.Now().String()+RaftSuffix)
-		if err != nil {
-			return nil, err
+		if wal.RaftStateSegment, err = OpenRaftStateSegment(wal.WalDirPath, time.Now().String()+RaftSuffix); err != nil {
+			log.Panicf("create a new raft state segment file error", err)
 		}
 	}
 
 	if wal.KVStateSegment == nil {
-		wal.KVStateSegment, err = OpenKVStateSegment(wal.WalDirPath, time.Now().String()+KVSuffix)
-		if err != nil {
-			return nil, err
+		if wal.KVStateSegment, err = OpenKVStateSegment(wal.WalDirPath, time.Now().String()+KVSuffix); err != nil {
+			log.Panicf("create a new kv state segment file error", err)
 		}
 	}
 
-	return wal, nil
+	return wal
 }
 
 func (wal *WAL) Write(entries []*pb.Entry) error {

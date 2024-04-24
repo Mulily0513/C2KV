@@ -65,7 +65,7 @@ func (l *raftLog) lastIndex() uint64 {
 func (l *raftLog) lastTerm() uint64 {
 	t, err := l.term(l.lastIndex())
 	if err != nil {
-		log.Panicf("unexpected error when getting the last term (%v)", err)
+		log.Errorf("unexpected error when getting the last term (%v)", err)
 	}
 	return t
 }
@@ -262,8 +262,7 @@ func (l *raftLog) findConflictIdxByTerm(index uint64, term uint64) uint64 {
 		// there is odd behavior with peers that have no log, in which case
 		// lastIndex will return zero and firstIndex will return one, which
 		// leads to calls with an index of zero into this method.
-		log.Warnf("index(%d) is out of range [0, lastIndex(%d)] in findConflictByTerm",
-			index, li)
+		log.Warnf("index(%d) is out of range [0, lastIndex(%d)] in findConflictByTerm", index, li)
 		return index
 	}
 	for {

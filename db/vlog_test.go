@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/ColdToo/Cold2DB/config"
 	"github.com/ColdToo/Cold2DB/db/marshal"
+	"github.com/ColdToo/Cold2DB/db/mocks"
 	"github.com/ColdToo/Cold2DB/db/wal"
 	"github.com/google/uuid"
 	"os"
@@ -28,10 +29,7 @@ func MockVlogFlush(mockKvs []*marshal.KV) *ValueLog {
 	}
 	tableC := make(chan *MemTable, 1)
 	errC := make(chan error)
-	vlog, err := OpenValueLog(vlogCfg, tableC, stateSegment)
-	if err != nil {
-		panic(err)
-	}
+	vlog := OpenValueLog(vlogCfg, tableC, stateSegment)
 
 	for _, record := range kvs {
 		p := vlog.getKeyPartition(record.Key)
@@ -65,7 +63,7 @@ func TestValueLog_Open(t *testing.T) {
 	if err != nil {
 		t.Errorf("OpenKVStateSegment returned error: %v", err)
 	}
-	_, err = OpenValueLog(vlogCfg, tableC, stateSegment)
+	_ = OpenValueLog(vlogCfg, tableC, stateSegment)
 	if err != nil {
 		t.Errorf("OpenValueLog returned error: %v", err)
 	}
@@ -80,10 +78,7 @@ func TestValueLog_ListenAndFlush(t *testing.T) {
 	if err != nil {
 		t.Errorf("OpenKVStateSegment returned error: %v", err)
 	}
-	vlog, err := OpenValueLog(mocks.VlogCfg, tableC, stateSegment)
-	if err != nil {
-		t.Errorf("OpenValueLog returned error: %v", err)
-	}
+	vlog := OpenValueLog(mocks.VlogCfg, tableC, stateSegment)
 
 	tableC <- MockDataMemTable(mocks.KVS_RAND_35MB_HASDEL_UQKey)
 	vlog.ListenAndFlush()

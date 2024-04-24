@@ -32,14 +32,6 @@ import (
 const None uint64 = 0
 const InitialTerm uint64 = 0
 const noLimit = math.MaxUint64
-
-var SendEmptyMessage bool = true
-
-// ErrProposalDropped is returned when the proposal is ignored by some cases,
-// so that the proposer can be notified and fail fast.
-var ErrProposalDropped = errors.New("raft proposal dropped")
-
-// Possible values for StateType.
 const (
 	StateFollower StateType = iota
 	StateCandidate
@@ -165,7 +157,7 @@ func (r *raft) loadHardState(state pb.HardState) {
 	r.vote = state.Vote
 }
 
-func (r *raft) softState() *SoftState { return &SoftState{Lead: r.lead, RaftState: r.state} }
+func (r *raft) softState() SoftState { return SoftState{Lead: r.lead, RaftState: r.state} }
 
 func (r *raft) hardState() pb.HardState {
 	return pb.HardState{
@@ -384,7 +376,7 @@ func (r *raft) handleMsgUnreachableStatus(m *pb.Message, pr *tracker.Progress) {
 func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
 	pr.RecentActive = true
 	if m.Reject {
-		log.Debugf("%x received MsgAppResp(rejected, hint: (index %d, term %d)) from %x for index %d", r.id, m.RejectHint, m.LogTerm, m.From, m.Index)
+		log.Infof("%x received MsgAppResp(rejected, hint: (index %d, term %d)) from %x for index %d", r.id, m.RejectHint, m.LogTerm, m.From, m.Index)
 		nextProbeIdx := m.RejectHint
 		//在正常情况下，领导者的日志比追随者的日志长，追随者的日志是领导者日志的前缀。在这种情况下，第一次探测（probe）会揭示追随者的日志结束位置（即RejectHint），随后的探测会成功。
 		//然而，在网络分区或系统过载的情况下，可能会出现较大的不一致日志尾部，这会导致探测过程非常耗时，甚至可能导致服务中断。
@@ -403,7 +395,7 @@ func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
 		//调用了MaybeDecrTo方法回退其Next索引。如果回退失败，说明这是一条过期的消息，不做处理；如果回退成功，且该节点为StateReplicate状态，
 		//则调用BecomeProbe使其转为StateProbe状态来查找最后一条匹配日志的位置。回退成功时，还会再次为该节点调用sendAppend方法，以为其发送MsgApp消息。
 		if pr.MaybeDecreaseTo(m.Index, nextProbeIdx) {
-			log.Debugf("%x decreased progress of %x to [%s]", r.id, m.From, pr)
+			log.Infof("%x decreased progress of %x to [%s]", r.id, m.From, pr)
 			if pr.State == tracker.StateReplicate {
 				pr.BecomeProbe()
 			}
@@ -413,37 +405,25 @@ func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
 	}
 
 	oldPaused := pr.IsPaused()
+	//update next、match index
 	if pr.MaybeUpdate(m.Index) {
 		switch {
 		//如果该follower处于StateProbe状态且现在跟上了进度，则将其转为StateReplica状态
 		case pr.State == tracker.StateProbe:
 			pr.BecomeReplicate()
-		case pr.State == tracker.StateSnapshot && pr.Match >= pr.PendingSnapshot:
-			// TODO(tbg): we should also enter this branch if a snapshot is
-			// received that is below pr.PendingSnapshot but which makes it
-			// possible to use the log again.
-			log.Debugf("%x recovered from needing snapshot, resumed sending replication messages to %x [%s]", r.id, m.From, pr)
-			// Transition back to replicating state via probing state
-			// (which takes the snapshot into account). If we didn't
-			// move to replicating state, that would only happen with
-			// the next round of appends (but there may not be a next
-			// round for a while, exposing an inconsistent RaftStatus).
-			pr.BecomeProbe()
-			pr.BecomeReplicate()
 		case pr.State == tracker.StateReplicate:
 		}
 
 		if r.maybeCommit() {
-			// committed index has progressed for the term, so it is safe
-			// to respond to pending read index requests
 			r.bcastAppend()
-		} else if oldPaused {
+		}
+
+		if oldPaused {
 			// If we were paused before, this node may be missing the
 			// latest commit index, so send it.
 			r.sendAppend(m.From)
 		}
 	}
-
 }
 
 func (r *raft) handlePropMsg(m *pb.Message) {
@@ -491,7 +471,8 @@ func (r *raft) sendAppend(to uint64) {
 }
 
 func (r *raft) maybeCommit() bool {
-	return false
+	index := r.trk.Committed()
+	return r.raftLog.maybeCommit(index, r.Term)
 }
 
 // ------------------ follower behavior ------------------

@@ -51,13 +51,13 @@ type SoftState struct {
 	RaftState StateType
 }
 
-func (a *SoftState) equal(b *SoftState) bool {
+func (a SoftState) equal(b SoftState) bool {
 	return a.Lead == b.Lead && a.RaftState == b.RaftState
 }
 
 type raftNode struct {
 	raft       *raft
-	prevSoftSt *SoftState
+	prevSoftSt SoftState
 	prevHardSt pb.HardState
 	readyC     chan Ready
 	propC      chan *pb.Message
@@ -193,10 +193,7 @@ func (rn *raftNode) newReady() Ready {
 		rd.HardState = hardSt
 	}
 
-	if rd.SoftState != nil {
-		rn.prevSoftSt = rd.SoftState
-	}
-
+	rn.prevSoftSt = rd.SoftState
 	rn.raft.msgs = nil
 	return rd
 }
@@ -205,7 +202,7 @@ type Ready struct {
 	// The current volatile state of a Node.
 	// SoftState will be nil if there is no update.
 	// It is not required to consume or store SoftState.
-	*SoftState
+	SoftState
 
 	HardState pb.HardState
 

@@ -18,7 +18,7 @@ type HttpKVAPI struct {
 	kvsService *KvService
 }
 
-func ServeKVAPI(kvService *KvService, Addr string, doneC <-chan struct{}) {
+func ServeHTTPKVAPI(kvService *KvService, Addr string, doneC <-chan struct{}) {
 	srv := http.Server{
 		Addr: Addr,
 		Handler: &HttpKVAPI{

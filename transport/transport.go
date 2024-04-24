@@ -10,7 +10,7 @@ import (
 )
 
 type RaftOperator interface {
-	Process(m *pb.Message) error
+	Process(m *pb.Message)
 	ReportUnreachable(id uint64)
 }
 
@@ -83,9 +83,7 @@ func (t *Transport) AddPeer(peerID types.ID, peerIAddr string) {
 		for {
 			select {
 			case mm := <-p.recvC:
-				if err := p.raft.Process(mm); err != nil {
-					log.Warn("failed to process Raft message").Err(code.MessageProcErr, err)
-				}
+				p.raft.Process(mm)
 			case <-p.stopC:
 				return
 			}

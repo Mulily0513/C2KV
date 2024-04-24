@@ -13,6 +13,11 @@ import (
 	"sync"
 )
 
+//  log structure
+//  ......persist................applied|first.................committed.................stabled....................last
+//	--------|--------mem-table----------|--------------------storage slice------------------|-----raft log slice------|
+//	--vlog--|--------------------------wal--------------------------------------------------|
+
 //go:generate mockgen -source=./db.go -destination=./mocks/db.go -package=mocks
 type Storage interface {
 	Get(key []byte) (kv *marshal.KV, err error)
@@ -20,8 +25,8 @@ type Storage interface {
 	Apply(kvs []*marshal.KV) error
 
 	PersistUnstableEnts(entries []*pb.Entry) error
-	PersistHardState(st pb.HardState, cs pb.ConfState) error
-	InitialState() (pb.HardState, pb.ConfState)
+	PersistHardState(hs pb.HardState, cs pb.ConfState) error
+	InitialState() (hs pb.HardState, cs pb.ConfState)
 
 	Entries(lo, hi uint64) ([]*pb.Entry, error)
 	Term(i uint64) (uint64, error)
@@ -55,30 +60,27 @@ type C2KV struct {
 	entries []*pb.Entry //stable raft log entries
 }
 
-func dbCfgCheck(dbCfg *config.DBConfig) (err error) {
+func dbCfgCheck(dbCfg *config.DBConfig) {
+	var err error
 	if !utils.PathExist(dbCfg.DBPath) {
 		if err = os.MkdirAll(dbCfg.DBPath, os.ModePerm); err != nil {
-			return
+			log.Panicf("can not creat db directory err:%v", err)
 		}
 	}
 	if !utils.PathExist(dbCfg.WalConfig.WalDirPath) {
 		if err = os.MkdirAll(dbCfg.WalConfig.WalDirPath, os.ModePerm); err != nil {
-			return
+			log.Panicf("can not creat wal directory err:%v", err)
 		}
 	}
 	if !utils.PathExist(dbCfg.ValueLogConfig.ValueLogDir) {
 		if err = os.MkdirAll(dbCfg.ValueLogConfig.ValueLogDir, os.ModePerm); err != nil {
-			return
+			log.Panicf("can not creat vlog directory err:%v", err)
 		}
 	}
-	return nil
 }
 
 func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
-	var err error
-	if err = dbCfgCheck(dbCfg); err != nil {
-		log.Panicf("db config check failed", err)
-	}
+	dbCfgCheck(dbCfg)
 	C2 = new(C2KV)
 	memFlushC := make(chan *MemTable, dbCfg.MemConfig.MemTableNums)
 	C2.memTablePipe = make(chan *MemTable, dbCfg.MemConfig.MemTablePipeSize)
@@ -86,18 +88,14 @@ func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 	C2.activeMem = NewMemTable(dbCfg.MemConfig)
 	C2.memFlushC = memFlushC
 	C2.entries = make([]*pb.Entry, 0)
-	if C2.wal, err = wal.NewWal(dbCfg.WalConfig); err != nil {
-		log.Panicf("open wal failed", err)
-	}
+	C2.wal = wal.NewWal(dbCfg.WalConfig)
 
 	if C2.wal.OrderSegmentList.Head != nil {
 		go C2.restoreMemEntries()
 		go C2.restoreImMemTable()
 	}
 
-	if C2.valueLog, err = OpenValueLog(dbCfg.ValueLogConfig, memFlushC, C2.wal.KVStateSegment); err != nil {
-		log.Panicf("open Value log failed", err)
-	}
+	C2.valueLog = OpenValueLog(dbCfg.ValueLogConfig, memFlushC, C2.wal.KVStateSegment)
 
 	go func() {
 		for {
@@ -343,27 +341,18 @@ func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
 }
 
 func (db *C2KV) Term(i uint64) (uint64, error) {
-	db.Lock()
-	defer db.Unlock()
 	offset := db.entries[0].Index
 	if i < offset {
 		return 0, code.ErrCompacted
-	}
-	if int(i-offset) >= len(db.entries) {
-		return 0, code.ErrUnavailable
 	}
 	return db.entries[i-offset].Term, nil
 }
 
 func (db *C2KV) AppliedIndex() uint64 {
-	db.Lock()
-	defer db.Unlock()
-	return db.firstIndex()
+	return db.firstIndex() - 1
 }
 
 func (db *C2KV) FirstIndex() uint64 {
-	db.Lock()
-	defer db.Unlock()
 	return db.firstIndex()
 }
 
@@ -372,8 +361,6 @@ func (db *C2KV) firstIndex() uint64 {
 }
 
 func (db *C2KV) StableIndex() uint64 {
-	db.Lock()
-	defer db.Unlock()
 	return db.lastIndex()
 }
 

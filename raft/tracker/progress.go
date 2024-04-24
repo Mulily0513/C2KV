@@ -24,17 +24,10 @@ import (
 // maintains progresses of all followers, and sends entries to the follower
 // based on its progress.
 type Progress struct {
-	//分别表示follower当前匹配的最大日志匹配号和下一个要应用的日志条目的匹配号。
+	//分别表示follower当前匹配的最大日志匹配号和下一个待接收日志条目的匹配号。
 	Match, Next uint64
 
 	State StateType
-
-	// PendingSnapshot is used in StateSnapshot.
-	// If there is a pending snapshot, the pendingSnapshot will be set to the
-	// index of the snapshot. If pendingSnapshot is set, the replication process of
-	// this Progress will be paused. raft will not resend snapshot until the pending one
-	// is reported to be failed.
-	PendingSnapshot uint64
 
 	// RecentActive is true if the progress is recently active. Receiving any messages
 	// from the corresponding follower indicates the progress is active.
@@ -51,7 +44,6 @@ type Progress struct {
 // PendingSnapshot, and Inflights.
 func (pr *Progress) ResetState(state StateType) {
 	pr.ProbeSent = false
-	pr.PendingSnapshot = 0
 	pr.State = state
 }
 
@@ -69,40 +61,17 @@ func min(a, b uint64) uint64 {
 	return a
 }
 
-// ProbeAcked is called when this peer has accepted an append. It resets
-// ProbeSent to signal that additional append messages should be sent without
-// further delay.
-func (pr *Progress) ProbeAcked() {
-	pr.ProbeSent = false
-}
-
 // BecomeProbe transitions into StateProbe. Next is reset to Match+1 or,
 // optionally and if larger, the index of the pending snapshot.
 func (pr *Progress) BecomeProbe() {
-	// If the original state is StateSnapshot, progress knows that
-	// the pending snapshot has been sent to this peer successfully, then
-	// probes from pendingSnapshot + 1.
-	if pr.State == StateSnapshot {
-		pendingSnapshot := pr.PendingSnapshot
-		pr.ResetState(StateProbe)
-		pr.Next = max(pr.Match+1, pendingSnapshot+1)
-	} else {
-		pr.ResetState(StateProbe)
-		pr.Next = pr.Match + 1
-	}
+	pr.ResetState(StateProbe)
+	pr.Next = pr.Match + 1
 }
 
 // BecomeReplicate transitions into StateReplicate, resetting Next to Match+1.
 func (pr *Progress) BecomeReplicate() {
 	pr.ResetState(StateReplicate)
 	pr.Next = pr.Match + 1
-}
-
-// BecomeSnapshot moves the Progress to StateSnapshot with the specified pending
-// snapshot index.
-func (pr *Progress) BecomeSnapshot(snapshoti uint64) {
-	pr.ResetState(StateSnapshot)
-	pr.PendingSnapshot = snapshoti
 }
 
 // MaybeUpdate is called when an MsgAppResp arrives from the follower, with the
@@ -119,6 +88,13 @@ func (pr *Progress) MaybeUpdate(n uint64) bool {
 		pr.Next = n + 1
 	}
 	return updated
+}
+
+// ProbeAcked is called when this peer has accepted an append. It resets
+// ProbeSent to signal that additional append messages should be sent without
+// further delay.
+func (pr *Progress) ProbeAcked() {
+	pr.ProbeSent = false
 }
 
 // OptimisticUpdate signals that appends all the way up to and including index n
@@ -182,9 +158,6 @@ func (pr *Progress) String() string {
 	fmt.Fprintf(&buf, "%s match=%d next=%d", pr.State, pr.Match, pr.Next)
 	if pr.IsPaused() {
 		fmt.Fprint(&buf, " paused")
-	}
-	if pr.PendingSnapshot > 0 {
-		fmt.Fprintf(&buf, " pendingSnap=%d", pr.PendingSnapshot)
 	}
 	if !pr.RecentActive {
 		fmt.Fprintf(&buf, " inactive")
