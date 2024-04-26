@@ -14,7 +14,7 @@ type RaftOperator interface {
 	ReportUnreachable(id uint64)
 }
 
-//go:generate mockgen -source=./transport.go -destination=../mocks/transport.go -package=mock
+//go:generate mockgen -source=./transport.go -destination=./mocks/transport.go -package=mock
 type Transporter interface {
 	ListenPeer(localIp string)
 
@@ -41,8 +41,7 @@ func (t *Transport) ListenPeer(addr string) {
 	if err != nil {
 		log.Panic("start listening failed").Str("local id", t.LocalId.Str()).Str("addr", addr).Err("err", err).Record()
 	}
-	log.Info("start listening").Str("local id", t.LocalId.Str()).Str("addr", addr).Record()
-
+	log.Infof("start listening, local ip : %s, addr : %s", t.LocalIAddr, addr)
 	for {
 	flag:
 		conn, err := ln.Accept()
@@ -78,6 +77,7 @@ func (t *Transport) AddPeer(peerID types.ID, peerIAddr string) {
 		streamWriter: streamWriter,
 		streamReader: streamReader,
 		recvC:        receiveC,
+		stopC:        t.StopC,
 	}
 	go func() {
 		for {

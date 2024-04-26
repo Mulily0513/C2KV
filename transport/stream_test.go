@@ -13,7 +13,6 @@ func TestStreamWriterAndReader_Run(t *testing.T) {
 	initLog()
 	localID := types.ID(1)
 	peerID := types.ID(2)
-	status := &peerStatus{}
 	reciveC := make(chan *pb.Message)
 	errC := make(chan error)
 	peerIP := "127.0.0.1:7878"
@@ -36,11 +35,10 @@ func TestStreamWriterAndReader_Run(t *testing.T) {
 		for {
 			conn, _ := ln.Accept()
 			log.Info("get a conn").Str("conn", conn.RemoteAddr().String()).Record()
-			writer.connC <- conn
 		}
 	}()
 
-	reader := startStreamReader(localID, peerID, status, nil, errC, reciveC, peerIP)
+	reader := startStreamReader(localID, peerID, , nil, errC, reciveC, peerIP)
 	go reader.run()
 
 	writer.run()

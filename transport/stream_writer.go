@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"github.com/ColdToo/Cold2DB/code"
 	"github.com/ColdToo/Cold2DB/log"
 	"github.com/ColdToo/Cold2DB/pb"
 	types "github.com/ColdToo/Cold2DB/transport/types"
@@ -40,20 +39,20 @@ func startStreamWriter(localId, peerId types.ID, peerIAddr, localIAddr string, n
 
 func (cw *streamWriter) run() {
 	var msgC chan *pb.Message
-	log.Info("started stream writer run").Str(code.LocalIP, cw.localIAddr).Str(code.RemoteId, cw.peerIAddr).Str(code.RemoteIp, cw.peerIp).Record()
+	log.Infof("started stream writer run, local ip : %s remote ip : %s", cw.localIAddr, cw.peerIAddr)
 	for {
 		select {
 		case m := <-msgC:
 			if _, err := cw.enc.encodeAndWrite(m); err != nil {
 				cw.netErrC <- err
-				log.Error("lost TCP streaming connection with remote peer").Str(code.LocalId, cw.localIAddr).Str(code.RemoteId, cw.peerID.Str()).Record()
+				log.Errorf("lost TCP streaming connection , local ip : %s remote ip : %s ,err : %v", cw.localIAddr, cw.peerIAddr, err)
 				cw.close()
 			}
-		case conn := <-cw.connC:
+		case conn := <-cw.connC: //"attachconn执行后，connC中有数据，然后发数据"
 			cw.close()
 			cw.enc = &msgEncoderAndWriter{conn}
 			msgC = cw.msgC
-			log.Info("established TCP streaming connection with remote peer").Str(code.LocalId, cw.localIAddr).Str(code.RemoteId, cw.peerID.Str()).Record()
+			log.Infof("established TCP streaming connection, local ip : %s, remote ip : %s", cw.localIAddr, cw.peerIAddr)
 		}
 	}
 }
@@ -61,7 +60,7 @@ func (cw *streamWriter) run() {
 func (cw *streamWriter) close() {
 	if cw.enc != nil {
 		if err := cw.enc.w.Close(); err != nil {
-			log.Error("failed to close remote peer connection").Str("local-member-id", cw.peerIAddr).Str("remote-peer-id", cr.peerId.Str()).Err("", err).Record()
+			log.Errorf("failed to close remote peer connection, local ip : %s, remote ip : %s, err : %v", cw.localIAddr, cw.peerIAddr, err)
 		}
 	}
 	cw.enc = nil

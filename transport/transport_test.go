@@ -36,7 +36,7 @@ func TestListenPeerConn(t *testing.T) {
 	trans.Peers[types.ID(2)] = mockPeer2
 	trans.Peers[types.ID(3)] = mockPeer3
 
-	go trans.ListenPeerAttachConn("127.0.0.1:8080")
+	go trans.ListenPeer("127.0.0.1:8080")
 
 	time.Sleep(time.Second)
 
@@ -60,7 +60,7 @@ func TestListenPeerConn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			go trans.ListenPeerAttachConn("127.0.0.1:8080")
+			go trans.ListenPeer("127.0.0.1:8080")
 			time.Sleep(time.Second)
 			conn, err := net.Dial("tcp", "127.0.0.1:8080")
 			if err != nil {
