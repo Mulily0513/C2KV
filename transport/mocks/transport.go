@@ -7,8 +7,8 @@ package mock
 import (
 	reflect "reflect"
 
-	pb "github.com/ColdToo/Cold2DB/pb"
-	transport "github.com/ColdToo/Cold2DB/transport/types"
+	pb "github.com/Mulily0513/C2KV/pb"
+	types "github.com/Mulily0513/C2KV/transport/types"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -36,11 +36,9 @@ func (m *MockRaftOperator) EXPECT() *MockRaftOperatorMockRecorder {
 }
 
 // Process mocks base method.
-func (m_2 *MockRaftOperator) Process(m *pb.Message) error {
+func (m_2 *MockRaftOperator) Process(m *pb.Message) {
 	m_2.ctrl.T.Helper()
-	ret := m_2.ctrl.Call(m_2, "Process", m)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m_2.ctrl.Call(m_2, "Process", m)
 }
 
 // Process indicates an expected call of Process.
@@ -85,7 +83,7 @@ func (m *MockTransporter) EXPECT() *MockTransporterMockRecorder {
 }
 
 // AddPeer mocks base method.
-func (m *MockTransporter) AddPeer(id transport.ID, url string) {
+func (m *MockTransporter) AddPeer(id types.ID, url string) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddPeer", id, url)
 }

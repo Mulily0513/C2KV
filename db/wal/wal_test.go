@@ -1,20 +1,17 @@
 package wal
 
 import (
-	"github.com/ColdToo/Cold2DB/pb"
+	"github.com/Mulily0513/C2KV/pb"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestWAL_Truncate(t *testing.T) {
 	truncateIndex := uint64(25000)
-	wal, err := NewWal(TestWALConfig1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	wal := NewWal(TestWALConfig1)
 	ents := SplitEntries(10000, Entries61MB)
 	for _, e := range ents {
-		err = wal.Write(e)
+		err := wal.Write(e)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,8 +33,8 @@ func TestWAL_Truncate(t *testing.T) {
 	}
 
 	assert.EqualValues(t, entries2, entries3)
-	err = wal.Close()
-	err = wal.Remove()
+	wal.Close()
+	wal.Remove()
 }
 
 func TestWAL_Write(t *testing.T) {
@@ -47,7 +44,7 @@ func TestWAL_Write(t *testing.T) {
 			t.Log(err)
 		}
 	}()
-	wal, err := NewWal(TestWALConfig64)
+	wal := NewWal(TestWALConfig64)
 	if err != nil {
 		t.Fatal(err)
 	}

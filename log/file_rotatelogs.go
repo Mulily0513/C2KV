@@ -1,7 +1,7 @@
 package log
 
 import (
-	"github.com/ColdToo/Cold2DB/config"
+	"github.com/Mulily0513/C2KV/config"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"go.uber.org/zap/zapcore"
 	"os"

@@ -2,8 +2,8 @@ package partition
 
 import (
 	"bytes"
-	"github.com/ColdToo/Cold2DB/code"
-	"github.com/ColdToo/Cold2DB/db/marshal"
+	"github.com/Mulily0513/C2KV/code"
+	"github.com/Mulily0513/C2KV/db/marshal"
 	"go.etcd.io/bbolt"
 	"os"
 	"path/filepath"

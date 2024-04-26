@@ -3,9 +3,9 @@ package mocks
 import (
 	"bytes"
 	"fmt"
-	"github.com/ColdToo/Cold2DB/config"
-	"github.com/ColdToo/Cold2DB/db/marshal"
-	"github.com/ColdToo/Cold2DB/db/partition"
+	"github.com/Mulily0513/C2KV/config"
+	"github.com/Mulily0513/C2KV/db/marshal"
+	"github.com/Mulily0513/C2KV/db/partition"
 	"github.com/google/uuid"
 	"math/rand"
 	"os"

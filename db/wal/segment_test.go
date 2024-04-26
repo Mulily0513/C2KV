@@ -2,7 +2,7 @@ package wal
 
 import (
 	"fmt"
-	"github.com/ColdToo/Cold2DB/pb"
+	"github.com/Mulily0513/C2KV/pb"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

@@ -5,12 +5,11 @@
 package mock
 
 import (
+	pb "github.com/Mulily0513/C2KV/pb"
+	gomock "github.com/golang/mock/gomock"
 	io "io"
 	reflect "reflect"
 	time "time"
-
-	pb "github.com/ColdToo/Cold2DB/pb"
-	gomock "github.com/golang/mock/gomock"
 )
 
 // MockPeer is a mock of Peer interface.

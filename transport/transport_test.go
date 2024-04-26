@@ -1,11 +1,10 @@
 package transport
 
 import (
-	"github.com/ColdToo/Cold2DB/config"
-	"github.com/ColdToo/Cold2DB/log"
-	types "github.com/ColdToo/Cold2DB/transport/types"
+	"github.com/Mulily0513/C2KV/config"
+	"github.com/Mulily0513/C2KV/log"
+	"github.com/Mulily0513/C2KV/transport/types"
 	"github.com/magiconair/properties/assert"
-	"io"
 	"net"
 	"strings"
 	"testing"
@@ -15,22 +14,22 @@ import (
 func TestListenPeerConn(t *testing.T) {
 	initLog()
 	trans := &Transport{
-		LocalID: types.ID(1),
+		LocalId: types.ID(1),
 		Peers:   make(map[types.ID]Peer),
 		StopC:   make(chan struct{}),
 	}
 
 	mockPeer1 := &peer{
-		peerIp:       "127.0.0.1:8080",
-		streamWriter: &streamWriter{connC: make(chan io.WriteCloser)},
+		peerAddr:     "127.0.0.1:8080",
+		streamWriter: &streamWriter{connC: make(chan net.Conn)},
 	}
 	mockPeer2 := &peer{
-		peerIp:       "172.16.60.33:8080",
-		streamWriter: &streamWriter{connC: make(chan io.WriteCloser)},
+		peerAddr:     "172.16.60.33:8080",
+		streamWriter: &streamWriter{connC: make(chan net.Conn)},
 	}
 	mockPeer3 := &peer{
-		peerIp:       "172.16.60.34:8080",
-		streamWriter: &streamWriter{connC: make(chan io.WriteCloser)},
+		peerAddr:     "172.16.60.34:8080",
+		streamWriter: &streamWriter{connC: make(chan net.Conn)},
 	}
 	trans.Peers[types.ID(1)] = mockPeer1
 	trans.Peers[types.ID(2)] = mockPeer2
@@ -73,7 +72,7 @@ func TestListenPeerConn(t *testing.T) {
 			c := <-tt.peer.streamWriter.connC
 			ipaddr := c.(*net.TCPConn).RemoteAddr()
 			testip := strings.Split(ipaddr.String(), ":")[0]
-			assert.Equal(t, testip, strings.Split(mockPeer1.peerIp, ":")[0])
+			assert.Equal(t, testip, strings.Split(mockPeer1.peerAddr, ":")[0])
 		})
 	}
 }

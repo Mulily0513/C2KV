@@ -1,10 +1,10 @@
 package partition
 
 import (
-	"github.com/ColdToo/Cold2DB/code"
-	"github.com/ColdToo/Cold2DB/db/iooperator"
-	"github.com/ColdToo/Cold2DB/db/marshal"
-	"github.com/ColdToo/Cold2DB/log"
+	"github.com/Mulily0513/C2KV/code"
+	"github.com/Mulily0513/C2KV/db/iooperator"
+	"github.com/Mulily0513/C2KV/db/marshal"
+	"github.com/Mulily0513/C2KV/log"
 	"github.com/google/uuid"
 	"github.com/valyala/bytebufferpool"
 	"go.etcd.io/bbolt"

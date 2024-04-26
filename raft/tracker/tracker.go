@@ -16,8 +16,8 @@ package tracker
 
 import (
 	"fmt"
-	"github.com/ColdToo/Cold2DB/pb"
-	"github.com/ColdToo/Cold2DB/raft/quorum"
+	"github.com/Mulily0513/C2KV/pb"
+	"github.com/Mulily0513/C2KV/raft/quorum"
 )
 
 // ProgressTracker tracks the currently active configuration and the information

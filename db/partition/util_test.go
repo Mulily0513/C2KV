@@ -3,6 +3,7 @@ package partition
 import (
 	"bytes"
 	"fmt"
+	"github.com/Mulily0513/C2KV/db/marshal"
 	"math/rand"
 	"os"
 	"path"
@@ -10,8 +11,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/ColdToo/Cold2DB/db/marshal"
 )
 
 const CreatKVsFmt = "create KVs nums %d, data length %d, bytes count %s"
