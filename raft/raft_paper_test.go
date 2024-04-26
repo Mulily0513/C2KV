@@ -42,18 +42,7 @@ func MockStorage(t *testing.T, appliedIndex, fistIndex, stableIndex, expIdx, exp
 	return storage
 }
 
-func MockStorageEnts(t *testing.T, appliedIndex, fistIndex, stableIndex, expIdx, expTerm uint64, hs pb.HardState, cs pb.ConfState) db.Storage {
-	mockCtl := gomock.NewController(t)
-	storage := mocks.NewMockStorage(mockCtl)
-	storage.EXPECT().FirstIndex().Return(fistIndex).AnyTimes()
-	storage.EXPECT().StableIndex().Return(stableIndex).AnyTimes()
-	storage.EXPECT().Term(expIdx).Return(expTerm, nil).AnyTimes()
-	storage.EXPECT().InitialState().Return(hs, cs).AnyTimes()
-	storage.EXPECT().AppliedIndex().Return(appliedIndex).AnyTimes()
-	return storage
-}
-
-func commitNoopEntry(r *raft, s db.Storage) {
+func commitNoopEntry(r *raft) {
 	if r.state != StateLeader {
 		panic("it should only be used when it is the leader")
 	}
@@ -66,9 +55,9 @@ func commitNoopEntry(r *raft, s db.Storage) {
 		}
 		r.Step(acceptAndReply(m))
 	}
-	// ignore further messages to refresh followers' commit index
+
+	// simulate advance
 	r.readMessages()
-	s.PersistUnstableEnts(r.raftLog.unstableEntries())
 	r.raftLog.appliedTo(r.raftLog.committed)
 	r.raftLog.stableTo(r.raftLog.lastIndex())
 }
@@ -150,12 +139,6 @@ func TestLeaderBcastBeat2AA(t *testing.T) {
 	if !reflect.DeepEqual(msgs, wmsgs) {
 		t.Errorf("msgs = %v, want %v", msgs, wmsgs)
 	}
-}
-
-func (r *raft) readMessages() []*pb.Message {
-	msgs := r.msgs
-	r.msgs = make([]*pb.Message, 0)
-	return msgs
 }
 
 // test follower、candidate start election
@@ -382,29 +365,21 @@ func TestLeaderStartReplication(t *testing.T) {
 	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, s)
 	r.becomeCandidate()
 	r.becomeLeader()
-	commitNoopEntry(r, s)
 	li := r.raftLog.lastIndex()
 
 	ents := []pb.Entry{{Data: []byte("some data")}}
 	r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: ents})
-
-	if g := r.raftLog.lastIndex(); g != li+1 {
-		t.Errorf("lastIndex = %d, want %d", g, li+1)
-	}
-	if g := r.raftLog.committed; g != li {
-		t.Errorf("committed = %d, want %d", g, li)
-	}
 	msgs := r.readMessages()
 	sort.Sort(messageSlice(msgs))
-	wents := []pb.Entry{{Index: li + 1, Term: 1, Data: []byte("some data")}}
+	wents := []pb.Entry{{Index: li, Term: 1, Data: nil}, {Index: li + 1, Term: 1, Data: []byte("some data")}}
 	wmsgs := []*pb.Message{
-		{From: 1, To: 2, Term: 1, Type: pb.MsgApp, Index: li, LogTerm: 1, Entries: wents, Commit: li},
-		{From: 1, To: 3, Term: 1, Type: pb.MsgApp, Index: li, LogTerm: 1, Entries: wents, Commit: li},
+		{From: 1, To: 2, Term: 1, Type: pb.MsgApp, Index: 0, LogTerm: 0, Entries: wents, Commit: 0},
+		{From: 1, To: 3, Term: 1, Type: pb.MsgApp, Index: 0, LogTerm: 0, Entries: wents, Commit: 0},
 	}
 	if !reflect.DeepEqual(msgs, wmsgs) {
 		t.Errorf("msgs = %+v, want %+v", msgs, wmsgs)
 	}
-	if g := r.raftLog.unstableEntries(); !reflect.DeepEqual(g, wents) {
+	if g := r.raftLog.unstableEntries(); !reflect.DeepEqual(g, transEnt2Cursor(wents)) {
 		t.Errorf("ents = %+v, want %+v", g, wents)
 	}
 }
@@ -422,7 +397,7 @@ func TestLeaderCommitEntry(t *testing.T) {
 	r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, s)
 	r.becomeCandidate()
 	r.becomeLeader()
-	commitNoopEntry(r, s)
+	commitNoopEntry(r)
 	li := r.raftLog.lastIndex()
 	r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{Data: []byte("some data")}}})
 
@@ -452,6 +427,330 @@ func TestLeaderCommitEntry(t *testing.T) {
 	}
 }
 
-//todo  Reference: section 5.4.2
-//// TestLeaderOnlyCommitsLogFromCurrentTerm tests that only log entries from the leader’s
-//// current term are committed by counting replicas.
+// TestLeaderAcknowledgeCommit tests that a log entry is committed once the
+// leader that created the entry has replicated it on a majority of the servers.
+// Reference: section 5.3
+func TestLeaderAcknowledgeCommit(t *testing.T) {
+	InitLog()
+	tests := []struct {
+		size      int
+		acceptors map[uint64]bool
+		wack      bool
+	}{
+		{3, nil, false},
+		{3, map[uint64]bool{2: true}, true},
+		{3, map[uint64]bool{2: true, 3: true}, true},
+		{5, nil, false},
+		{5, map[uint64]bool{2: true}, false},
+		{5, map[uint64]bool{2: true, 3: true}, true},
+		{5, map[uint64]bool{2: true, 3: true, 4: true}, true},
+		{5, map[uint64]bool{2: true, 3: true, 4: true, 5: true}, true},
+	}
+
+	for i, tt := range tests {
+		s := MockStorage(t, 0, 0, 0, ignore, ignore, pb.HardState{}, pb.ConfState{})
+		r := newTestRaft(1, idsBySize(tt.size), 10, 1, s)
+		r.becomeCandidate()
+		r.becomeLeader()
+		commitNoopEntry(r)
+		li := r.raftLog.lastIndex()
+		r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{Data: []byte("some data")}}})
+
+		for _, m := range r.readMessages() {
+			if tt.acceptors[m.To] {
+				r.Step(acceptAndReply(m))
+			}
+		}
+
+		if g := r.raftLog.committed > li; g != tt.wack {
+			t.Errorf("#%d: ack commit = %v, want %v", i, g, tt.wack)
+		}
+	}
+}
+
+// TestLeaderCommitPrecedingEntries tests that when leader commits a log entry,
+// it also commits all preceding entries in the leader’s log, including
+// entries created by previous leaders.
+// Also, it applies the entry to its local state machine (in log order).
+// Reference: section 5.3
+func TestLeaderCommitPrecedingEntries(t *testing.T) {
+	InitLog()
+	tests := [][]*pb.Entry{
+		{{Term: 2, Index: 1}},
+		{{Term: 1, Index: 1}, {Term: 2, Index: 2}},
+		{{Term: 1, Index: 1}},
+	}
+	for i, tt := range tests {
+		s := MockStorage(t, 0, 0, 0, ignore, ignore, pb.HardState{}, pb.ConfState{})
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, s)
+		r.raftLog.truncateAndAppend(tt)
+		r.Term = 2
+		r.becomeCandidate()
+		r.becomeLeader()
+		r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{Data: []byte("some data")}}})
+
+		for _, m := range r.readMessages() {
+			r.Step(acceptAndReply(m))
+		}
+
+		li := uint64(len(tt))
+		wents := append(tt, &pb.Entry{Term: 3, Index: li + 1}, &pb.Entry{Term: 3, Index: li + 2, Data: []byte("some data")})
+		if g := r.raftLog.nextCommittedEnts(); !reflect.DeepEqual(g, wents) {
+			t.Errorf("#%d: ents = %+v, want %+v", i, g, wents)
+		}
+	}
+}
+
+// TestFollowerCommitEntry tests that once a follower learns that a log entry
+// is committed, it applies the entry to its local state machine (in log order).
+// Reference: section 5.3
+func TestFollowerCommitEntry(t *testing.T) {
+	InitLog()
+	tests := []struct {
+		ents   []*pb.Entry
+		commit uint64
+	}{
+		{
+			[]*pb.Entry{
+				{Term: 1, Index: 1, Data: []byte("some data")},
+			},
+			1,
+		},
+		{
+			[]*pb.Entry{
+				{Term: 1, Index: 1, Data: []byte("some data")},
+				{Term: 1, Index: 2, Data: []byte("some data2")},
+			},
+			2,
+		},
+		{
+			[]*pb.Entry{
+				{Term: 1, Index: 1, Data: []byte("some data2")},
+				{Term: 1, Index: 2, Data: []byte("some data")},
+			},
+			2,
+		},
+		{
+			[]*pb.Entry{
+				{Term: 1, Index: 1, Data: []byte("some data")},
+				{Term: 1, Index: 2, Data: []byte("some data2")},
+			},
+			1,
+		},
+	}
+	for i, tt := range tests {
+		s := MockStorage(t, 0, 0, 0, ignore, ignore, pb.HardState{}, pb.ConfState{})
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, s)
+		r.becomeFollower(1, 2)
+
+		r.Step(&pb.Message{From: 2, To: 1, Type: pb.MsgApp, Term: 1, Entries: transEnt2Value(tt.ents), Commit: tt.commit})
+
+		if g := r.raftLog.committed; g != tt.commit {
+			t.Errorf("#%d: committed = %d, want %d", i, g, tt.commit)
+		}
+		wents := tt.ents[:int(tt.commit)]
+		if g := r.raftLog.nextCommittedEnts(); !reflect.DeepEqual(g, wents) {
+			t.Errorf("#%d: nextEnts = %v, want %v", i, g, wents)
+		}
+	}
+}
+
+// TestFollowerCheckMsgApp tests that if the follower does not find an
+// entry in its log with the same index and term as the one in AppendEntries RPC,
+// then it refuses the new entries. Otherwise it replies that it accepts the
+// append entries.
+// Reference: section 5.3
+func TestFollowerCheckMsgApp(t *testing.T) {
+	InitLog()
+	tests := []struct {
+		term        uint64
+		index       uint64
+		windex      uint64
+		wreject     bool
+		wrejectHint uint64
+		s           db.Storage
+	}{
+		// match with committed entries
+		{0, 0, 1, false, 0, MockStorage(t, 0, 0, 0, 0, 0, pb.HardState{}, pb.ConfState{})},
+		{1, 1, 1, false, 0, MockStorage(t, 0, 0, 1, 1, 1, pb.HardState{}, pb.ConfState{})},
+	}
+	for i, tt := range tests {
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, tt.s)
+		r.raftLog.committed = 1
+		r.becomeFollower(2, 2)
+		r.Step(&pb.Message{From: 2, To: 1, Type: pb.MsgApp, Term: 2, LogTerm: tt.term, Index: tt.index})
+
+		msgs := r.readMessages()
+		wmsgs := []*pb.Message{
+			{From: 1, To: 2, Type: pb.MsgAppResp, Term: 2, Index: tt.windex, Reject: tt.wreject, RejectHint: tt.wrejectHint},
+		}
+		if !reflect.DeepEqual(msgs, wmsgs) {
+			t.Errorf("#%d: msgs = %+v, want %+v", i, msgs, wmsgs)
+		}
+	}
+}
+
+// TestFollowerAppendEntries tests that when AppendEntries RPC is valid,
+// the follower will delete the existing conflict entry and all that follow it,
+// and append any new entries not already in the log.
+// Also, it writes the new entry into stable storage.
+// Reference: section 5.3
+func TestFollowerAppendEntries(t *testing.T) {
+	InitLog()
+	tests := []struct {
+		name        string
+		index, term uint64
+		ents        []*pb.Entry
+		wents       []*pb.Entry
+	}{
+		{"1",
+			2, 2,
+			[]*pb.Entry{{Term: 3, Index: 3}},
+			[]*pb.Entry{{Term: 1, Index: 1}, {Term: 2, Index: 2}, {Term: 3, Index: 3}},
+		},
+		{"2",
+			1, 1,
+			[]*pb.Entry{{Term: 3, Index: 2}, {Term: 4, Index: 3}},
+			[]*pb.Entry{{Term: 1, Index: 1}, {Term: 3, Index: 2}, {Term: 4, Index: 3}},
+		},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := MockStorage(t, 0, 0, 0, 0, 0, pb.HardState{}, pb.ConfState{})
+			r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, storage)
+			r.raftLog.truncateAndAppend([]*pb.Entry{{Term: 1, Index: 1}, {Term: 2, Index: 2}})
+			r.becomeFollower(2, 2)
+			r.Step(&pb.Message{From: 2, To: 1, Type: pb.MsgApp, Term: 2, LogTerm: tt.term, Index: tt.index, Entries: transEnt2Value(tt.ents)})
+
+			if g := r.raftLog.unstableEntries(); !reflect.DeepEqual(g, tt.wents) {
+				t.Errorf("#%d: unstableEnts = %+v, want %+v", i, g, tt.wents)
+			}
+		})
+	}
+}
+
+// TestVoteRequest tests that the vote request includes information about the candidate’s log
+// and are sent to all of the other nodes.
+// Reference: section 5.4.1
+func TestVoteRequest(t *testing.T) {
+	InitLog()
+	tests := []struct {
+		ents  []pb.Entry
+		wterm uint64
+	}{
+		{[]pb.Entry{{Term: 1, Index: 1}}, 2},
+		{[]pb.Entry{{Term: 1, Index: 1}, {Term: 2, Index: 2}}, 3},
+	}
+	for j, tt := range tests {
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, MockStorage(t, 0, 0, 0, 0, 0, pb.HardState{}, pb.ConfState{}))
+		r.Step(&pb.Message{From: 2, To: 1, Type: pb.MsgApp, Term: tt.wterm - 1, LogTerm: 0, Index: 0, Entries: tt.ents})
+		r.readMessages()
+
+		for i := 1; i < r.electionTimeout*2; i++ {
+			r.tickElection()
+		}
+
+		msgs := r.readMessages()
+		sort.Sort(messageSlice(msgs))
+		if len(msgs) != 2 {
+			t.Fatalf("#%d: len(msg) = %d, want %d", j, len(msgs), 2)
+		}
+		for i, m := range msgs {
+			if m.Type != pb.MsgVote {
+				t.Errorf("#%d: msgType = %d, want %d", i, m.Type, pb.MsgVote)
+			}
+			if m.To != uint64(i+2) {
+				t.Errorf("#%d: to = %d, want %d", i, m.To, i+2)
+			}
+			if m.Term != tt.wterm {
+				t.Errorf("#%d: term = %d, want %d", i, m.Term, tt.wterm)
+			}
+			windex, wlogterm := tt.ents[len(tt.ents)-1].Index, tt.ents[len(tt.ents)-1].Term
+			if m.Index != windex {
+				t.Errorf("#%d: index = %d, want %d", i, m.Index, windex)
+			}
+			if m.LogTerm != wlogterm {
+				t.Errorf("#%d: logterm = %d, want %d", i, m.LogTerm, wlogterm)
+			}
+		}
+	}
+}
+
+// TestVoter tests the voter denies its vote if its own log is more up-to-date
+// than that of the candidate.
+// Reference: section 5.4.1
+func TestVoter(t *testing.T) {
+	InitLog()
+	tests := []struct {
+		ents    []pb.Entry
+		logterm uint64
+		index   uint64
+
+		wreject bool
+	}{
+		// same logterm
+		{[]pb.Entry{{Term: 1, Index: 1}}, 1, 1, false},
+		{[]pb.Entry{{Term: 1, Index: 1}}, 1, 2, false},
+		{[]pb.Entry{{Term: 1, Index: 1}, {Term: 1, Index: 2}}, 1, 1, true},
+		// candidate higher logterm
+		{[]pb.Entry{{Term: 1, Index: 1}}, 2, 1, false},
+		{[]pb.Entry{{Term: 1, Index: 1}}, 2, 2, false},
+		{[]pb.Entry{{Term: 1, Index: 1}, {Term: 1, Index: 2}}, 2, 1, false},
+		// voter higher logterm
+		{[]pb.Entry{{Term: 2, Index: 1}}, 1, 1, true},
+		{[]pb.Entry{{Term: 2, Index: 1}}, 1, 2, true},
+		{[]pb.Entry{{Term: 2, Index: 1}, {Term: 1, Index: 2}}, 1, 1, true},
+	}
+	for i, tt := range tests {
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, MockStorage(t, 0, 0, 0, 0, 0, pb.HardState{}, pb.ConfState{}))
+		r.raftLog.truncateAndAppend(transEnt2Cursor(tt.ents))
+
+		r.Step(&pb.Message{From: 2, To: 1, Type: pb.MsgVote, Term: 3, LogTerm: tt.logterm, Index: tt.index})
+
+		msgs := r.readMessages()
+		if len(msgs) != 1 {
+			t.Fatalf("#%d: len(msg) = %d, want %d", i, len(msgs), 1)
+		}
+		m := msgs[0]
+		if m.Type != pb.MsgVoteResp {
+			t.Errorf("#%d: msgType = %d, want %d", i, m.Type, pb.MsgVoteResp)
+		}
+		if m.Reject != tt.wreject {
+			t.Errorf("#%d: reject = %t, want %t", i, m.Reject, tt.wreject)
+		}
+	}
+}
+
+// TestLeaderOnlyCommitsLogFromCurrentTerm tests that only log entries from the leader’s
+// current term are committed by counting replicas.
+// Reference: section 5.4.2
+func TestLeaderOnlyCommitsLogFromCurrentTerm(t *testing.T) {
+	InitLog()
+	ents := []pb.Entry{{Term: 1, Index: 1}, {Term: 2, Index: 2}}
+	tests := []struct {
+		index   uint64
+		wcommit uint64
+	}{
+		// do not commit log entries in previous terms
+		{1, 0},
+		{2, 0},
+		// commit log in current term
+		{3, 3},
+	}
+	for i, tt := range tests {
+		r := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, MockStorage(t, 0, 0, 0, 0, 0, pb.HardState{}, pb.ConfState{}))
+		r.raftLog.truncateAndAppend(transEnt2Cursor(ents))
+		r.Term = 2
+		// become leader at term 3
+		r.becomeCandidate()
+		r.becomeLeader()
+		r.readMessages()
+		// propose a entry to current term
+		r.Step(&pb.Message{From: 1, To: 1, Type: pb.MsgProp, Entries: []pb.Entry{{}}})
+
+		r.Step(&pb.Message{From: 2, To: 1, Type: pb.MsgAppResp, Term: r.Term, Index: tt.index})
+		if r.raftLog.committed != tt.wcommit {
+			t.Errorf("#%d: commit = %d, want %d", i, r.raftLog.committed, tt.wcommit)
+		}
+	}
+}

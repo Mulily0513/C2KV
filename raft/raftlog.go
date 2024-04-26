@@ -51,15 +51,16 @@ func (l *raftLog) firstIndex() uint64 {
 			return l.unstableEnts[0].Index
 		}
 		return 0
+	} else {
+		return firstIndex
 	}
-	return firstIndex
 }
 
 func (l *raftLog) lastIndex() uint64 {
 	if length := len(l.unstableEnts); length != 0 {
 		return l.offset + uint64(length) - 1
 	}
-	return l.storage.StableIndex()
+	return l.stabled
 }
 
 func (l *raftLog) lastTerm() uint64 {
@@ -72,7 +73,7 @@ func (l *raftLog) lastTerm() uint64 {
 
 func (l *raftLog) term(i uint64) (uint64, error) {
 	if i < l.firstIndex() || i > l.lastIndex() {
-		return 0, nil
+		return 0, code.ErrUnavailable
 	}
 
 	if i > l.stabled {
@@ -161,11 +162,8 @@ func (l *raftLog) unstableEntries() []*pb.Entry {
 }
 
 func (l *raftLog) nextCommittedEnts() (ents []*pb.Entry) {
-	//由于日志清理等原因，一些已应用的日志条目已被删除，实际下一条要应用的条目应该从 l.firstIndex() 开始计数。
-	//所以这里取applied和firstindex的最大值
-	off := max(l.applied+1, l.firstIndex())
-	if l.committed+1 > off {
-		ents, err := l.slice(off, l.committed+1)
+	if l.committed > l.applied {
+		ents, err := l.slice(l.applied+1, l.committed+1)
 		if err != nil {
 			log.Panicf("unexpected error when getting unapplied entries (%v)", err)
 		}
@@ -175,16 +173,17 @@ func (l *raftLog) nextCommittedEnts() (ents []*pb.Entry) {
 }
 
 func (l *raftLog) hasNextCommittedEnts() bool {
-	off := max(l.applied+1, l.firstIndex())
-	return l.committed+1 > off
+	return l.committed > l.applied
 }
 
 // truncate append与maybeAppend是向raftLog写入日志的方法。
 // 二者的区别在于truncate append不会检查给定的日志切片是否与已有日志有冲突，leader会直接调用该方法
 // 因此leader向raftLog中追加日志时会调用truncate append；
 func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...*pb.Entry) (lastnewi uint64, ok bool) {
+	//先判断是否与最后一个日志匹配
 	if l.matchTerm(index, logTerm) {
 		lastnewi = index + uint64(len(ents))
+		//判断要加入的日志中是否有冲突的日志
 		ci := l.findConflict(ents)
 		switch {
 		//说明既没有冲突又没有新日志，直接进行下一步处理
@@ -198,6 +197,7 @@ func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...*pb.Entr
 			offset := index + 1
 			l.truncateAndAppend(ents[ci-offset:])
 		}
+		//lastnewi可能会小于committed，这是由于leader没有发送完整的entry导致的
 		l.commitTo(min(committed, lastnewi))
 		return lastnewi, true
 	}
@@ -283,7 +283,10 @@ func (l *raftLog) zeroTermOnErrCompacted(t uint64, err error) uint64 {
 	if err == nil {
 		return t
 	}
-	if err == ErrCompacted {
+	if err == code.ErrCompacted {
+		return 0
+	}
+	if err == code.ErrUnavailable {
 		return 0
 	}
 	log.Panicf("unexpected error (%v)", err)
@@ -322,6 +325,7 @@ func (l *raftLog) stableTo(i uint64) {
 	if i >= l.offset {
 		l.unstableEnts = l.unstableEnts[i+1-l.offset:]
 		l.offset = i + 1
+		l.stabled = i
 		l.shrinkEntriesArray()
 	}
 }

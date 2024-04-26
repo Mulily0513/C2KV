@@ -80,26 +80,27 @@ func (an *AppNode) serveRaftNode() {
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
 			log.Debug("start handle ready").Record()
-			if len(rd.UnstableEntries) > 0 {
-				if err = an.kvStorage.PersistUnstableEnts(rd.UnstableEntries); err != nil {
-					log.Errorf("save entries failed", err)
+			//todo 并发？
+			if !raft.IsEmptyHardState(rd.HardState) {
+				if err = an.kvStorage.PersistHardState(rd.HardState, rd.ConfState); err != nil {
+					log.Panicf("save hard state failed", err)
 				}
 			}
 
-			if !raft.IsEmptyHardState(rd.HardState) {
-				if err = an.kvStorage.PersistHardState(rd.HardState, rd.ConfState); err != nil {
-					log.Errorf("", err)
+			if len(rd.UnstableEntries) > 0 {
+				if err = an.kvStorage.PersistUnstableEnts(rd.UnstableEntries); err != nil {
+					log.Panicf("save entries failed", err)
 				}
 			}
 
 			if len(rd.CommittedEntries) > 0 {
 				if err = an.applyCommittedEnts(rd.CommittedEntries); err != nil {
-					log.Errorf("apply entries failed", err)
+					log.Panicf("apply entries failed", err)
 				}
 			}
 
 			if len(rd.Messages) > 0 {
-				an.transport.Send(rd.Messages)
+				go an.transport.Send(rd.Messages)
 			}
 
 			//通知raftNode本轮ready已经处理完可以进行下一轮处理

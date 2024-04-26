@@ -110,12 +110,12 @@ func (rn *raftNode) serveAppNode() {
 		select {
 		case <-rn.tickC:
 			rn.raft.tick()
+
 		case m := <-rn.receiveC:
-			if pr := rn.raft.trk.Progress[m.From]; pr != nil {
-				rn.raft.Step(m)
-			}
+			rn.raft.Step(m)
 		case m := <-rn.propC:
 			rn.raft.Step(m)
+
 		case readyC <- rd:
 			advanceC = rn.advanceC
 		case <-advanceC:
@@ -135,6 +135,9 @@ func (rn *raftNode) Tick() {
 }
 
 func (rn *raftNode) Step(m *pb.Message) {
+	if m.Type == pb.MsgBeat || m.Type == pb.MsgHup {
+		return
+	}
 	if m.Type == pb.MsgProp {
 		rn.propC <- m
 	}
@@ -180,19 +183,17 @@ func (rn *raftNode) advance(rd Ready) {
 }
 
 func (rn *raftNode) newReady() Ready {
-	r := rn.raft
 	rd := Ready{
-		UnstableEntries:  r.raftLog.unstableEntries(),
-		CommittedEntries: r.raftLog.nextCommittedEnts(),
-		Messages:         r.msgs,
+		UnstableEntries:  rn.raft.raftLog.unstableEntries(),
+		CommittedEntries: rn.raft.raftLog.nextCommittedEnts(),
+		Messages:         rn.raft.msgs,
 	}
-	if softSt := r.softState(); !softSt.equal(rn.prevSoftSt) {
+	if softSt := rn.raft.softState(); !softSt.equal(rn.prevSoftSt) {
 		rd.SoftState = softSt
 	}
-	if hardSt := r.hardState(); !isHardStateEqual(hardSt, rn.prevHardSt) {
+	if hardSt := rn.raft.hardState(); !isHardStateEqual(hardSt, rn.prevHardSt) {
 		rd.HardState = hardSt
 	}
-
 	rn.prevSoftSt = rd.SoftState
 	rn.raft.msgs = nil
 	return rd

@@ -192,8 +192,6 @@ func (r *raft) becomeLeader() {
 	//在成为leader后需要插入一条空日志
 	emptyEnt := pb.Entry{Data: nil}
 	r.appendEntry(emptyEnt)
-	// 发送追加日志
-	r.bcastAppend()
 	log.Infof("peer:%x became leader at term %d", r.id, r.Term)
 }
 
@@ -217,7 +215,7 @@ func (r *raft) becomeCandidate() {
 
 func (r *raft) tickElection() {
 	r.electionElapsed++
-	if r.promotable() && r.electionElapsed >= r.randomizedElectionTimeout {
+	if r.electionElapsed >= r.randomizedElectionTimeout {
 		r.electionElapsed = 0
 		r.Step(&pb.Message{From: r.id, Type: pb.MsgHup})
 	}
@@ -281,21 +279,12 @@ func stepLeader(r *raft, m *pb.Message) {
 		r.bcastHeartbeat()
 	case pb.MsgProp:
 		r.handlePropMsg(m)
-	}
-
-	pr := r.trk.Progress[m.From]
-	if pr == nil {
-		log.Errorf("%x no progress available for %x", r.id, m.From)
-		return
-	}
-
-	switch m.Type {
 	case pb.MsgAppResp:
-		r.handleAppendResponse(m, pr)
+		r.handleAppendResponse(m)
 	case pb.MsgHeartbeatResp:
-		r.handleHeartbeatResponse(m, pr)
+		r.handleHeartbeatResponse(m)
 	case pb.MsgUnreachable:
-		r.handleMsgUnreachableStatus(m, pr)
+		r.handleMsgUnreachableStatus(m)
 	}
 	return
 }
@@ -313,15 +302,13 @@ func stepFollower(r *raft, m *pb.Message) {
 func stepCandidate(r *raft, m *pb.Message) {
 	switch m.Type {
 	case pb.MsgApp:
-		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
+		r.becomeFollower(m.Term, m.From)
 		r.handleAppendEntries(m)
 	case pb.MsgHeartbeat:
-		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
+		r.becomeFollower(m.Term, m.From)
 		r.handleHeartbeat(m)
 	case pb.MsgVoteResp:
 		r.handleRequestVoteResponse(m)
-	case pb.MsgTimeoutNow:
-		log.Debugf("%x [term %d state %v] ignored MsgTimeoutNow from %x", r.id, r.Term, r.state, m.From)
 	}
 	return
 }
@@ -354,26 +341,39 @@ func (r *raft) sendHeartbeat(to uint64) {
 	r.send(m)
 }
 
-func (r *raft) handleHeartbeatResponse(m *pb.Message, pr *tracker.Progress) {
+func (r *raft) handleHeartbeatResponse(m *pb.Message) {
+	pr := r.trk.Progress[m.From]
+	if pr == nil {
+		log.Errorf("%x no progress available for %x", r.id, m.From)
+		return
+	}
 	pr.RecentActive = true
 	pr.ProbeSent = false
-
 	//如果该节点的match index小于leader当前最后一条日志，则为其调用sendAppend方法来复制新日志。
 	if pr.Match < r.raftLog.lastIndex() {
 		r.sendAppend(m.From)
 	}
-
 	return
 }
 
-func (r *raft) handleMsgUnreachableStatus(m *pb.Message, pr *tracker.Progress) {
+func (r *raft) handleMsgUnreachableStatus(m *pb.Message) {
+	pr := r.trk.Progress[m.From]
+	if pr == nil {
+		log.Errorf("%x no progress available for %x", r.id, m.From)
+		return
+	}
 	if pr.State == tracker.StateReplicate {
 		pr.BecomeProbe()
 	}
-	log.Debugf("%x failed to send message to %x because it is unreachable [%s]", r.id, m.From, pr)
+	log.Infof("%x failed to send message to %x because it is unreachable [%s]", r.id, m.From, pr)
 }
 
-func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
+func (r *raft) handleAppendResponse(m *pb.Message) {
+	pr := r.trk.Progress[m.From]
+	if pr == nil {
+		log.Errorf("%x no progress available for %x", r.id, m.From)
+		return
+	}
 	pr.RecentActive = true
 	if m.Reject {
 		log.Infof("%x received MsgAppResp(rejected, hint: (index %d, term %d)) from %x for index %d", r.id, m.RejectHint, m.LogTerm, m.From, m.Index)
@@ -404,7 +404,6 @@ func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
 		return
 	}
 
-	oldPaused := pr.IsPaused()
 	//update next、match index
 	if pr.MaybeUpdate(m.Index) {
 		switch {
@@ -416,12 +415,6 @@ func (r *raft) handleAppendResponse(m *pb.Message, pr *tracker.Progress) {
 
 		if r.maybeCommit() {
 			r.bcastAppend()
-		}
-
-		if oldPaused {
-			// If we were paused before, this node may be missing the
-			// latest commit index, so send it.
-			r.sendAppend(m.From)
 		}
 	}
 }
@@ -438,6 +431,7 @@ func (r *raft) appendEntry(es ...pb.Entry) {
 		es[i].Index = li + 1 + uint64(i)
 	}
 	r.raftLog.truncateAndAppend(transEnt2Cursor(es))
+	r.trk.Progress[r.id].MaybeUpdate(r.raftLog.lastIndex())
 }
 
 func (r *raft) bcastAppend() {
@@ -481,19 +475,19 @@ func (r *raft) handleHeartbeat(m *pb.Message) {
 	r.electionElapsed = 0
 	r.lead = m.From
 	r.raftLog.commitTo(m.Commit)
-	r.send(&pb.Message{To: m.From, Type: pb.MsgHeartbeatResp, Context: m.Context})
+	r.send(&pb.Message{To: m.From, From: r.id, Index: r.raftLog.lastIndex(), Type: pb.MsgHeartbeatResp, Term: r.Term})
 }
 
 func (r *raft) handleAppendEntries(m *pb.Message) {
 	//如果用于日志匹配的条目在committed之前，说明这是一条过期的消息，因此直接返回MsgAppResp消息，
 	//并将消息的Index字段置为committed的值，以让leader快速更新该follower的next index。
 	if m.Index < r.raftLog.committed {
-		r.send(&pb.Message{To: m.From, Type: pb.MsgAppResp, Index: r.raftLog.committed})
+		r.send(&pb.Message{To: m.From, From: r.id, Type: pb.MsgAppResp, Index: r.raftLog.committed, Term: r.Term})
 		return
 	}
 
 	if mlastIndex, ok := r.raftLog.maybeAppend(m.Index, m.LogTerm, m.Commit, transEnt2Cursor(m.Entries)...); ok {
-		r.send(&pb.Message{To: m.From, Type: pb.MsgAppResp, Index: mlastIndex})
+		r.send(&pb.Message{To: m.From, From: r.id, Type: pb.MsgAppResp, Index: mlastIndex, Term: r.Term})
 		return
 	}
 
@@ -508,6 +502,8 @@ func (r *raft) handleAppendEntries(m *pb.Message) {
 	}
 	r.send(&pb.Message{
 		To:         m.From,
+		From:       r.id,
+		Term:       r.Term,
 		Type:       pb.MsgAppResp,
 		Index:      m.Index,
 		Reject:     true,
@@ -518,42 +514,24 @@ func (r *raft) handleAppendEntries(m *pb.Message) {
 
 // ------------------ candidate behavior ------------------
 
-// promotable indicates whether state machine can be promoted to leader,
-// which is true when its own id is in progress list.
-func (r *raft) promotable() bool {
-	pr := r.trk.Progress[r.id]
-	return pr != nil
-}
-
 // 选举可以由heartbeat timeout触发或者客户端主动发起选举触发
 func (r *raft) hup() {
 	if r.state == StateLeader {
-		log.Debugf("%x ignoring MsgHup because already leader", r.id)
-		return
-	}
-
-	if !r.promotable() {
-		log.Warnf("%x is unpromotable and can not campaign", r.id)
+		log.Warnf("%x ignoring MsgHup because already leader", r.id)
 		return
 	}
 
 	log.Infof("%x is starting a new election at term %d", r.id, r.Term)
-	r.campaign()
-}
-
-func (r *raft) campaign() {
 	r.becomeCandidate()
 	if _, _, res := r.poll(r.id, voteRespMsgType(pb.MsgVote), true); res == quorum.VoteWon {
 		r.becomeLeader()
 		return
 	}
-
 	for _, id := range r.trk.Voters.Slice() {
 		if id == r.id {
 			continue
 		}
-		log.Infof("%x [logterm: %d, index: %d] sent %s request to %x at term %d",
-			r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
+		log.Infof("%x [logterm: %d, index: %d] sent %s request to %x at term %d", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
 		r.send(&pb.Message{Term: r.Term, From: r.id, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }
@@ -575,15 +553,13 @@ func (r *raft) sendAllRequestVote() {
 		if id == r.id {
 			continue
 		}
-
 		log.Infof("%x [logterm: %d, index: %d] sent %s request to %x at term %d",
 			r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
-
 		r.send(&pb.Message{Term: r.Term, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }
 
-// id from peer  t 预选举或选举 v 是否拒绝
+// id   t 预选举或选举 v 是否拒绝
 func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected int, result quorum.VoteResult) {
 	if v {
 		log.Infof("%x received %s from %x at term %d", r.id, t, id, r.Term)
@@ -617,13 +593,19 @@ func (r *raft) send(m *pb.Message) {
 }
 
 func (r *raft) advance() {
-	if newApplied := r.raftLog.storage.AppliedIndex(); newApplied > 0 {
+	if newApplied := r.raftLog.storage.AppliedIndex(); newApplied > 0 && newApplied > r.raftLog.applied {
 		r.raftLog.appliedTo(newApplied)
 	}
 
-	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 {
+	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 && newStabled > r.raftLog.stabled {
 		r.raftLog.stableTo(newStabled)
 	}
+}
+
+func (r *raft) readMessages() []*pb.Message {
+	msgs := r.msgs
+	r.msgs = make([]*pb.Message, 0)
+	return msgs
 }
 
 // lockedRand is a small wrapper around rand.Rand to provide
