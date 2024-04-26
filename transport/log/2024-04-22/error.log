@@ -1,1 +1,0 @@
-2024/04/22 - 16:22:03.798	[31merror[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_reader.go:52	failed read from conn%!(EXTRA *net.OpError=read tcp 127.0.0.1:62921->127.0.0.1:7878: read: connection reset by peer)
