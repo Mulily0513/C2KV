@@ -25,7 +25,7 @@ type msgDecoderAndReader struct {
 }
 
 func (dec *msgDecoderAndReader) decodeAndRead() (*pb.Message, error) {
-	var m *pb.Message
+	m := new(pb.Message)
 	pkg, err := dec.unmarshalPkg()
 	if err != nil && err != io.EOF {
 		return nil, err
@@ -34,6 +34,20 @@ func (dec *msgDecoderAndReader) decodeAndRead() (*pb.Message, error) {
 		log.Panicf("unmarshal failed:%v", err)
 	}
 	return m, nil
+}
+
+func (dec *msgDecoderAndReader) unmarshalPkg() (pkg Package, err error) {
+	headData := make([]byte, HeaderLength)
+	if _, err = dec.r.Read(headData); err != nil {
+		return pkg, err
+	}
+	pkg.Id = headData[zero]
+	pkg.DataLen = binary.LittleEndian.Uint32(headData[IDLength:HeaderLength])
+	pkg.Data = make([]byte, pkg.DataLen)
+	if _, err = dec.r.Read(pkg.Data); err != nil {
+		return
+	}
+	return
 }
 
 const (
@@ -63,18 +77,4 @@ func (pkg *Package) marshal() []byte {
 	binary.LittleEndian.PutUint32(buf[IDLength:HeaderLength], pkg.DataLen)
 	copy(buf[HeaderLength:], pkg.Data)
 	return buf
-}
-
-func (dec *msgDecoderAndReader) unmarshalPkg() (pkg Package, err error) {
-	headData := make([]byte, HeaderLength)
-	if _, err = dec.r.Read(headData); err != nil {
-		return pkg, err
-	}
-	pkg.Id = headData[zero]
-	pkg.DataLen = binary.LittleEndian.Uint32(headData[IDLength:HeaderLength])
-	pkg.Data = make([]byte, pkg.DataLen)
-	if _, err = dec.r.Read(pkg.Data); err != nil {
-		return
-	}
-	return
 }

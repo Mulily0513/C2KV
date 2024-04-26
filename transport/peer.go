@@ -38,12 +38,7 @@ func (p *peer) Send(m *pb.Message) {
 	select {
 	case p.streamWriter.msgC <- m:
 	default:
-		log.Error(
-			"dropped internal Raft message since sending buffer is full (overloaded network)").
-			Str("message-type", m.Type.String()).
-			Str("local-member-id", p.localId.Str()).
-			Str("from", types.ID(m.From).Str()).
-			Str("peer-peer-id", p.peerId.Str()).Record()
+		log.Errorf("dropped internal Raft message since sending buffer is full (overloaded network),message:%v, local ip : %s, remote ip : &s", *m, p.localIAddr, p.peerAddr)
 	}
 }
 

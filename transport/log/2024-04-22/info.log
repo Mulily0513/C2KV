@@ -1,0 +1,15 @@
+2024/04/22 - 16:21:02.800	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_writer.go:54	started stream writer run	{"local-member-id": "0", "remote-peer-id": "0", "remote-peer-ip": ""}
+2024/04/22 - 16:21:03.800	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_reader.go:71	start dial remote peer	{"from": "1", "to": "2", "address": "127.0.0.1:7878"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_reader.go:71	start dial remote peer	{"from": "1", "to": "2", "address": "127.0.0.1:7878"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_reader.go:81	dial remote peer success	{"from": "1", "to": "2", "address": "127.0.0.1:7878"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_reader.go:81	dial remote peer success	{"from": "1", "to": "2", "address": "127.0.0.1:7878"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_test.go:38	get a conn	{"conn": "127.0.0.1:62921"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_test.go:38	get a conn	{"conn": "127.0.0.1:62922"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_writer.go:79	established TCP streaming connection with remote peer	{"local-member-id": "0", "remote-peer-id": "0"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_writer.go:72	success close existed TCP streaming connection when get a new conn	{"local-member-id": "0", "remote-peer-id": "0"}
+2024/04/22 - 16:21:03.801	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_writer.go:79	established TCP streaming connection with remote peer	{"local-member-id": "0", "remote-peer-id": "0"}
+2024/04/22 - 16:22:04.799	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_reader.go:71	start dial remote peer	{"from": "1", "to": "2", "address": "127.0.0.1:7878"}
+2024/04/22 - 16:22:04.800	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_reader.go:81	dial remote peer success	{"from": "1", "to": "2", "address": "127.0.0.1:7878"}
+2024/04/22 - 16:22:04.800	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_test.go:38	get a conn	{"conn": "127.0.0.1:62951"}
+2024/04/22 - 16:22:04.800	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_writer.go:72	success close existed TCP streaming connection when get a new conn	{"local-member-id": "0", "remote-peer-id": "0"}
+2024/04/22 - 16:22:04.800	[34minfo[0m	/Users/hlhf/GolandProjects/C2KV/transport/stream_writer.go:79	established TCP streaming connection with remote peer	{"local-member-id": "0", "remote-peer-id": "0"}

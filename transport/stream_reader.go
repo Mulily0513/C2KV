@@ -31,7 +31,7 @@ func startStreamReader(localID, peerId types.ID, peerIAddr, localIAddr string, n
 }
 
 func (cr *streamReader) run() {
-	cr.enc = cr.dial()
+	cr.enc = cr.dial() //"首先dial()"
 	for {
 		m, err := cr.enc.decodeAndRead()
 		if err != nil {
@@ -50,13 +50,10 @@ func (cr *streamReader) run() {
 }
 
 func (cr *streamReader) dial() *msgDecoderAndReader {
-	var count int
 	for {
 		Conn, err := net.Dial("tcp", cr.peerIAddr)
 		if err != nil {
 			log.Errorf("start dial remote peer from %s to %s failed %v", cr.localId.Str(), cr.peerId.Str(), err)
-			//todo 一直重连不成功
-			count++
 			continue
 		}
 		log.Infof("start dial remote peer from %s to %s success", cr.localId.Str(), cr.peerId.Str())
@@ -67,8 +64,7 @@ func (cr *streamReader) dial() *msgDecoderAndReader {
 func (cr *streamReader) close() {
 	if cr.enc != nil {
 		if err := cr.enc.r.Close(); err != nil {
-			log.Error("failed to close remote peer connection").Str("local-member-id", cr.localId.Str()).Str("remote-peer-id", cr.peerId.Str()).Err("", err).Record()
+			log.Errorf("failed to close remote peer connection, local ip : %s, remote ip : %s ", cr.localIAddr, cr.peerIAddr)
 		}
 	}
-	cr.enc = nil
 }

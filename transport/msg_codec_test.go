@@ -2,11 +2,12 @@ package transport
 
 import (
 	"fmt"
+	"github.com/ColdToo/Cold2DB/config"
+	"github.com/ColdToo/Cold2DB/log"
 	"github.com/ColdToo/Cold2DB/pb"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
-	"time"
 )
 
 var (
@@ -51,10 +52,26 @@ var (
 	}
 )
 
+func InitLog() {
+	cfg := &config.ZapConfig{
+		Level:         "debug",
+		Format:        "console",
+		Prefix:        "[C2KV]",
+		Director:      "./log",
+		ShowLine:      true,
+		EncodeLevel:   "LowercaseColorLevelEncoder",
+		StacktraceKey: "stacktrace",
+		LogInConsole:  true,
+	}
+	log.InitLog(cfg)
+}
+
 // 测试编解码
 func TestDataPack(t *testing.T) {
-	//创建服务器gotoutine，负责从客户端goroutine读取粘包的数据，然后进行解析
-	go func() { //创建socket TCP Server
+	InitLog()
+	//创建服务器goroutine，负责从客户端goroutine读取粘包的数据，然后进行解析
+	signal := make(chan struct{})
+	go func() {
 		listener, err := net.Listen("tcp", "127.0.0.1:7777")
 		if err != nil {
 			fmt.Println("server listen err:", err)
@@ -75,6 +92,7 @@ func TestDataPack(t *testing.T) {
 						t.Log(err)
 						continue
 					}
+
 					if pbmsg.Index == message1.Index {
 						assert.Equal(t, pbmsg, message1)
 					}
@@ -82,6 +100,8 @@ func TestDataPack(t *testing.T) {
 					if pbmsg.Index == message2.Index {
 						assert.Equal(t, pbmsg, message2)
 					}
+
+					signal <- struct{}{}
 				}
 			}(conn)
 		}
@@ -101,9 +121,9 @@ func TestDataPack(t *testing.T) {
 		enc.encodeAndWrite(message2)
 	}()
 
-	//客户端阻塞
+	//阻塞主协程
 	select {
-	case <-time.After(time.Second):
+	case <-signal:
 		return
 	}
 }
