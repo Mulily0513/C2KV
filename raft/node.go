@@ -67,9 +67,9 @@ type raftNode struct {
 	tickC    chan struct{}
 }
 
-func StartRaftNode(raftConfig *config.RaftConfig, storage db.Storage) Node {
+func StartRaftNode(id uint64, raftConfig config.RaftConfig, storage db.Storage) Node {
 	opts := &raftOpts{
-		Id:               raftConfig.Id,
+		Id:               id,
 		electionTimeout:  raftConfig.ElectionTick,
 		heartbeatTimeout: raftConfig.HeartbeatTick,
 		storage:          storage,

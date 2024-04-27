@@ -1,25 +1,17 @@
 package config
 
+// RaftConfig 表示Raft配置的结构体
 type RaftConfig struct {
-	Id uint64
-	// ElectionTick is the number of Node.Tick invocations that must pass between
-	// elections. That is, if a follower does not receive any message from the
-	// leader of current term before ElectionTick has elapsed, it will become
-	// candidate and start an election. ElectionTick must be greater than
-	// HeartbeatTick. We suggest ElectionTick = 10 * HeartbeatTick to avoid
-	// unnecessary leader switching.
-	ElectionTick int
-	// HeartbeatTick is the number of Node.Tick invocations that must pass between
-	// heartbeats. That is, a leader sends heartbeat messages to maintain its
-	// leadership every HeartbeatTick ticks.
-	HeartbeatTick  int
-	RequestLimit   int
-	RequestTimeout int
+	ElectionTick   int    `yaml:"electionTick"`
+	HeartbeatTick  int    `yaml:"heartbeatTick"`
+	RequestTimeOut int    `yaml:"requestTimeOut"`
+	EAddr          string `yaml:"eAddr"`
 	Peers          []Peer `yaml:"peers"`
 }
 
+// Peer 表示Raft节点的结构体
 type Peer struct {
+	Name  string `yaml:"name"`
 	Id    uint64 `yaml:"id"`
-	EAddr string `yaml:"eAddr"`
 	IAddr string `yaml:"iAddr"`
 }

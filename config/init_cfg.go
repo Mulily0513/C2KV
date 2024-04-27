@@ -6,53 +6,50 @@ import (
 	"strings"
 )
 
-var (
-	vip  = viper.New()
-	conf = new(config)
-)
+var conf config
 
 type config struct {
-	zapConf  *ZapConfig
-	dbConf   *DBConfig
-	raftConf *RaftConfig
+	ZapConfig  ZapConfig  `yaml:"zapConfig"  json:"zapConfig"`
+	DbConfig   DBConfig   `yaml:"dbConfig"   json:"dbConfig"`
+	RaftConfig RaftConfig `yaml:"raftConfig" json:"raftConfig"`
 }
 
 func InitConfig(cfgPath string) {
 	var err error
-	vip.SetConfigFile(cfgPath)
-	vip.SetConfigType("yaml")
+	viper.SetConfigFile(cfgPath)
+	viper.SetConfigType("json")
 	if err = viper.ReadInConfig(); err != nil {
 		panic(err)
 	}
-	if err = viper.Unmarshal(cfgPath); err != nil {
+	if err = viper.Unmarshal(&conf); err != nil {
 		panic(err)
 	}
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
-		if err = viper.Unmarshal(&config{}); err != nil {
+		if err = viper.Unmarshal(conf); err != nil {
 		}
 	})
 }
 
-func GetZapConf() *ZapConfig {
-	return conf.zapConf
+func GetZapConf() ZapConfig {
+	return conf.ZapConfig
 }
 
-func GetRaftConf() *RaftConfig {
-	return conf.raftConf
+func GetRaftConf() RaftConfig {
+	return conf.RaftConfig
 }
 
-func GetDBConf() *DBConfig {
-	return conf.dbConf
+func GetDBConf() DBConfig {
+	return conf.DbConfig
 }
 
 func GetLocalInfo() (localIAddr string, localEAddr string, localId uint64, peers []Peer) {
-	raftConf := conf.raftConf
+	raftConf := conf.RaftConfig
 	for _, peer := range raftConf.Peers {
-		if strings.Split(peer.EAddr, ":")[0] == strings.Split(peer.IAddr, ":")[0] {
+		if strings.Split(raftConf.EAddr, ":")[0] == strings.Split(peer.IAddr, ":")[0] {
 			localId = peer.Id
 			localIAddr = peer.IAddr
-			localIAddr = peer.EAddr
+			localIAddr = raftConf.EAddr
 		}
 		peers = append(peers, peer)
 	}

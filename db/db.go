@@ -60,7 +60,7 @@ type C2KV struct {
 	entries []*pb.Entry //stable raft log entries
 }
 
-func dbCfgCheck(dbCfg *config.DBConfig) {
+func dbCfgCheck(dbCfg config.DBConfig) {
 	var err error
 	if !utils.PathExist(dbCfg.DBPath) {
 		if err = os.MkdirAll(dbCfg.DBPath, os.ModePerm); err != nil {
@@ -79,7 +79,7 @@ func dbCfgCheck(dbCfg *config.DBConfig) {
 	}
 }
 
-func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
+func OpenKVStorage(dbCfg config.DBConfig) (C2 *C2KV) {
 	dbCfgCheck(dbCfg)
 	C2 = new(C2KV)
 	memFlushC := make(chan *MemTable, dbCfg.MemConfig.MemTableNums)

@@ -14,7 +14,7 @@ import (
 var log *zap.Logger
 var sugaredLog *zap.SugaredLogger
 
-func InitLog(config *config.ZapConfig) {
+func InitLog(config config.ZapConfig) {
 	if ok := utils.PathExist(config.Director); !ok {
 		_ = os.Mkdir(config.Director, os.ModePerm)
 	}
@@ -168,7 +168,7 @@ func (f *Fields) Record() {
 	}
 }
 
-func getZapCores(config *config.ZapConfig) []zapcore.Core {
+func getZapCores(config config.ZapConfig) []zapcore.Core {
 	cores := make([]zapcore.Core, 0, 7)
 	for level := transLevel(config.Level); level <= zapcore.FatalLevel; level++ {
 		cores = append(cores, getEncoderCore(level, getLevelPriority(level), config))
@@ -198,7 +198,7 @@ func transLevel(level string) zapcore.Level {
 	}
 }
 
-func getEncoderCore(l zapcore.Level, level zap.LevelEnablerFunc, config *config.ZapConfig) zapcore.Core {
+func getEncoderCore(l zapcore.Level, level zap.LevelEnablerFunc, config config.ZapConfig) zapcore.Core {
 	writer, err := FileRotatelogs.GetWriteSyncer(l.String(), config) // 使用file-rotatelogs进行日志分割
 	if err != nil {
 		fmt.Printf("Get Write Syncer Failed err:%v", err.Error())
@@ -260,21 +260,20 @@ func zapEncodeLevel(encodeLevel string) zapcore.LevelEncoder {
 	}
 }
 
-func getEncoder(config *config.ZapConfig) zapcore.Encoder {
+func getEncoder(config config.ZapConfig) zapcore.Encoder {
 	if config.Format == "json" {
 		return zapcore.NewJSONEncoder(getEncoderConfig(config))
 	}
 	return zapcore.NewConsoleEncoder(getEncoderConfig(config))
 }
 
-func getEncoderConfig(config *config.ZapConfig) zapcore.EncoderConfig {
+func getEncoderConfig(config config.ZapConfig) zapcore.EncoderConfig {
 	return zapcore.EncoderConfig{
 		MessageKey:     "message",
 		LevelKey:       "level",
 		TimeKey:        "time",
 		NameKey:        "logger",
 		CallerKey:      "caller",
-		StacktraceKey:  config.StacktraceKey,
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeLevel:    zapEncodeLevel(config.EncodeLevel),
 		EncodeTime:     customTimeEncoder,

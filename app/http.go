@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"github.com/Mulily0513/C2KV/log"

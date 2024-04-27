@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"github.com/Mulily0513/C2KV/config"
@@ -29,7 +29,7 @@ type AppNode struct {
 }
 
 func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, proposeC chan []byte, confChangeC chan pb.ConfChange,
-	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, monitorKV map[int64]chan struct{}) {
+	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig config.RaftConfig, monitorKV map[int64]chan struct{}) {
 	an := &AppNode{
 		localId:     localId,
 		localIAddr:  localIAddr,
@@ -44,7 +44,7 @@ func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, propos
 	// 完成当前节点与集群中其他节点之间的网络连接
 	an.servePeerRaft()
 	// 启动Raft
-	an.raftNode = raft.StartRaftNode(raftConfig, kvStorage)
+	an.raftNode = raft.StartRaftNode(localId, raftConfig, kvStorage)
 	// 启动一个goroutine,处理appNode与raftNode的交互
 	go an.serveRaftNode()
 	// 启动一个goroutine,处理客户端请求的节点变更以及日志提议
