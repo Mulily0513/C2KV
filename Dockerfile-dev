@@ -3,11 +3,22 @@ FROM golang:1.19
 # Build Delve
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
+RUN mkdir /var/run/sshd
+
+RUN apt-get update && apt-get install -y ssh && apt-get install -y bash &&  apt-get install -y vim && apt-get install -y net-tools
+
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+RUN echo 'root:root1234' | chpasswd
+
 ADD . /app
 WORKDIR /app
 
 RUN go build  -o c2kv
 
+CMD ["/usr/sbin/sshd","-D"]
+
 EXPOSE 2345 7878
 
 #CMD ["dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "./c2kv"]
+#"dlv --listen=:40000 --headless=true", "--api-version=2", "--accept-multiclient", "exec", "./c2kv"
