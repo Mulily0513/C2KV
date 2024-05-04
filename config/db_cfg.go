@@ -7,32 +7,32 @@ type DBConfig struct {
 
 	ValueLogConfig ValueLogConfig `yaml:"valueLogConfig" json:"valueLogConfig"`
 
-	WalConfig WalConfig `yaml:"walConfig"`
+	WalConfig WalConfig `yaml:"walConfig" json:"walConfig"`
 }
 
 type MemConfig struct {
-	MemTableNums int `yaml:"memTableNums"`
+	MemTableNums int `yaml:"memTableNums"  json:"memTableNums"`
 
-	MemTablePipeSize int `yaml:"memTablePipeSize"`
+	MemTablePipeSize int `yaml:"memTablePipeSize"  json:"memTablePipeSize"`
 
 	// Default value is 64MB. MB Unit
-	MemTableSize int64 `yaml:"memTableSize"`
+	MemTableSize int64 `yaml:"memTableSize" json:"memTableSize"`
 
 	// memTable的写入并发度
-	Concurrency int `yaml:"concurrency"`
+	Concurrency int `yaml:"concurrency"  json:"concurrency"`
 }
 
 type WalConfig struct {
-	WalDirPath string `yaml:"walDirPath"`
+	WalDirPath string `yaml:"walDirPath" json:"walDirPath"`
 
 	//specifies the maximum size of each segment file in bytes. SegmentSize int64
-	SegmentSize int `yaml:"segmentSize"`
+	SegmentSize int `yaml:"segmentSize"  json:"segmentSize"`
 }
 
 type ValueLogConfig struct {
-	ValueLogDir string `yaml:"valueLogDir"`
+	ValueLogDir string `yaml:"valueLogDir"  json:"valueLogDir""`
 
-	PartitionNums int `yaml:"partitionNums"`
+	PartitionNums int `yaml:"partitionNums" json:"partitionNums"`
 
-	SSTSize int `yaml:"sstSize"`
+	SSTSize int `yaml:"sstSize" json:"sstSize"`
 }

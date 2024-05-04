@@ -7,6 +7,7 @@ package directio
 
 import (
 	"os"
+	"syscall"
 )
 
 // OpenFile is a modified version of os.OpenFile which sets O_DIRECT

@@ -16,7 +16,7 @@ type KvService struct {
 	ReqTimeout time.Duration
 }
 
-func NewKVService(proposeC chan<- []byte, raftConfig config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}) *KvService {
+func NewKVService(proposeC chan<- []byte, raftConfig *config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}) *KvService {
 	s := &KvService{
 		storage:    kvStorage,
 		proposeC:   proposeC,

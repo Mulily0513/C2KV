@@ -2,10 +2,10 @@ package db
 
 import (
 	"bytes"
-	"github.com/ColdToo/Cold2DB/config"
-	"github.com/ColdToo/Cold2DB/db/marshal"
-	"github.com/ColdToo/Cold2DB/db/mocks"
-	"github.com/ColdToo/Cold2DB/db/wal"
+	"github.com/Mulily0513/C2KV/config"
+	"github.com/Mulily0513/C2KV/db/marshal"
+	"github.com/Mulily0513/C2KV/db/mocks"
+	"github.com/Mulily0513/C2KV/db/wal"
 	"github.com/google/uuid"
 	"os"
 	"sync"
@@ -21,7 +21,7 @@ func MockDataMemTable(kvs []*marshal.KV) *MemTable {
 func MockVlogFlush(mockKvs []*marshal.KV) *ValueLog {
 	kvs := MockDataMemTable(mockKvs).All()
 	partitionRecords := make([][]*marshal.KV, 3)
-	mocks.CreateValueLogDirIfNotExist(mocks.VlogPath)
+	mocks.CreateValueLogDirIfNotExist(mocks.ValueLogPath)
 	vlogCfg := mocks.VlogCfg
 	stateSegment, err := wal.OpenKVStateSegment(mocks.FilePath, uuid.New().String()+wal.SegSuffix)
 	if err != nil {
@@ -53,9 +53,9 @@ func MockVlogFlush(mockKvs []*marshal.KV) *ValueLog {
 }
 
 func TestValueLog_Open(t *testing.T) {
-	mocks.CreateValueLogDirIfNotExist(mocks.VlogPath)
+	mocks.CreateValueLogDirIfNotExist(mocks.ValueLogPath)
 	vlogCfg := config.ValueLogConfig{
-		ValueLogDir:   mocks.VlogPath,
+		ValueLogDir:   mocks.ValueLogPath,
 		PartitionNums: 3,
 	}
 	tableC := make(chan *MemTable)
@@ -67,11 +67,11 @@ func TestValueLog_Open(t *testing.T) {
 	if err != nil {
 		t.Errorf("OpenValueLog returned error: %v", err)
 	}
-	os.RemoveAll(mocks.VlogPath)
+	os.RemoveAll(mocks.ValueLogPath)
 }
 
 func TestValueLog_ListenAndFlush(t *testing.T) {
-	mocks.CreateValueLogDirIfNotExist(mocks.VlogPath)
+	mocks.CreateValueLogDirIfNotExist(mocks.ValueLogPath)
 
 	tableC := make(chan *MemTable, 3)
 	stateSegment, err := wal.OpenKVStateSegment(mocks.FilePath, uuid.New().String()+wal.SegSuffix)

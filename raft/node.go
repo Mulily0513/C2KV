@@ -67,12 +67,13 @@ type raftNode struct {
 	tickC    chan struct{}
 }
 
-func StartRaftNode(id uint64, raftConfig config.RaftConfig, storage db.Storage) Node {
+func StartRaftNode(id uint64, raftConfig *config.RaftConfig, storage db.Storage) Node {
 	opts := &raftOpts{
 		Id:               id,
 		electionTimeout:  raftConfig.ElectionTick,
 		heartbeatTimeout: raftConfig.HeartbeatTick,
 		storage:          storage,
+		peers:            raftConfig.GetPeerIds(),
 	}
 
 	rn := &raftNode{
@@ -88,7 +89,7 @@ func StartRaftNode(id uint64, raftConfig config.RaftConfig, storage db.Storage) 
 	}
 	rn.prevSoftSt = rn.raft.softState()
 	rn.prevHardSt = rn.raft.hardState()
-	rn.serveAppNode()
+	go rn.serveAppNode()
 	return rn
 }
 

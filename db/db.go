@@ -39,8 +39,6 @@ type Storage interface {
 }
 
 type C2KV struct {
-	dbCfg *config.DBConfig
-
 	activeMem *MemTable
 
 	immtableQ *MemTableQueue
@@ -60,7 +58,7 @@ type C2KV struct {
 	entries []*pb.Entry //stable raft log entries
 }
 
-func dbCfgCheck(dbCfg config.DBConfig) {
+func dbCfgCheck(dbCfg *config.DBConfig) {
 	var err error
 	if !utils.PathExist(dbCfg.DBPath) {
 		if err = os.MkdirAll(dbCfg.DBPath, os.ModePerm); err != nil {
@@ -79,7 +77,7 @@ func dbCfgCheck(dbCfg config.DBConfig) {
 	}
 }
 
-func OpenKVStorage(dbCfg config.DBConfig) (C2 *C2KV) {
+func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 	dbCfgCheck(dbCfg)
 	C2 = new(C2KV)
 	memFlushC := make(chan *MemTable, dbCfg.MemConfig.MemTableNums)
@@ -90,18 +88,19 @@ func OpenKVStorage(dbCfg config.DBConfig) (C2 *C2KV) {
 	C2.entries = make([]*pb.Entry, 0)
 	C2.wal = wal.NewWal(dbCfg.WalConfig)
 
+	go func() {
+		for {
+			C2.memTablePipe <- NewMemTable(dbCfg.MemConfig)
+		}
+	}()
+
 	if C2.wal.OrderSegmentList.Head != nil {
 		go C2.restoreMemEntries()
 		go C2.restoreImMemTable()
 	}
 
 	C2.valueLog = OpenValueLog(dbCfg.ValueLogConfig, memFlushC, C2.wal.KVStateSegment)
-
-	go func() {
-		for {
-			C2.memTablePipe <- NewMemTable(dbCfg.MemConfig)
-		}
-	}()
+	go C2.valueLog.ListenAndFlush()
 	return C2
 }
 
@@ -341,6 +340,12 @@ func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
 }
 
 func (db *C2KV) Term(i uint64) (uint64, error) {
+	if i < db.firstIndex() {
+		return 0, code.ErrCompacted
+	}
+	if i == 0 {
+		return 0, nil
+	}
 	offset := db.entries[0].Index
 	if i < offset {
 		return 0, code.ErrCompacted
@@ -349,6 +354,9 @@ func (db *C2KV) Term(i uint64) (uint64, error) {
 }
 
 func (db *C2KV) AppliedIndex() uint64 {
+	if db.firstIndex() == 0 {
+		return 0
+	}
 	return db.firstIndex() - 1
 }
 
@@ -357,6 +365,9 @@ func (db *C2KV) FirstIndex() uint64 {
 }
 
 func (db *C2KV) firstIndex() uint64 {
+	if len(db.entries) == 0 {
+		return 0
+	}
 	return db.entries[0].Index + 1
 }
 
@@ -365,6 +376,9 @@ func (db *C2KV) StableIndex() uint64 {
 }
 
 func (db *C2KV) lastIndex() uint64 {
+	if len(db.entries) == 0 {
+		return 0
+	}
 	return db.entries[uint64(len(db.entries))-1].Index
 }
 

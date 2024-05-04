@@ -8,10 +8,7 @@ import (
 )
 
 func TestSegmentFile_NewSegmentFile(t *testing.T) {
-	segment, err := NewSegmentFile(TestWALConfig1.WalDirPath, TestWALConfig1.SegmentSize)
-	if err != nil {
-		t.Errorf("Expected nil, but got %v", err)
-	}
+	segment := NewSegmentFile(TestWALConfig1.WalDirPath, TestWALConfig1.SegmentSize)
 	assert.EqualValues(t, segment.Index, DefaultMinLogIndex)
 	assert.EqualValues(t, segment.blocksOffset, 0)
 	segment.Close()
@@ -19,10 +16,7 @@ func TestSegmentFile_NewSegmentFile(t *testing.T) {
 }
 
 func TestSegmentFile_Write(t *testing.T) {
-	segment, err := NewSegmentFile(TestWALConfig1.WalDirPath, TestWALConfig1.SegmentSize)
-	if err != nil {
-		t.Errorf("Expected nil, but got %v", err)
-	}
+	segment := NewSegmentFile(TestWALConfig1.WalDirPath, TestWALConfig1.SegmentSize)
 
 	//todo 测试不同分支的write
 	// 1、写入<block4

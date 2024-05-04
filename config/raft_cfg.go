@@ -15,3 +15,10 @@ type Peer struct {
 	Id    uint64 `yaml:"id"`
 	IAddr string `yaml:"iAddr"`
 }
+
+func (r *RaftConfig) GetPeerIds() (peerIds []uint64) {
+	for _, peer := range r.Peers {
+		peerIds = append(peerIds, peer.Id)
+	}
+	return
+}

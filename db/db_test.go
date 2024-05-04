@@ -1,10 +1,10 @@
 package db
 
 import (
-	"github.com/ColdToo/Cold2DB/config"
-	"github.com/ColdToo/Cold2DB/db/marshal"
-	"github.com/ColdToo/Cold2DB/db/mocks"
-	"github.com/ColdToo/Cold2DB/db/wal"
+	"github.com/Mulily0513/C2KV/config"
+	"github.com/Mulily0513/C2KV/db/marshal"
+	"github.com/Mulily0513/C2KV/db/mocks"
+	"github.com/Mulily0513/C2KV/db/wal"
 	"reflect"
 	"testing"
 )
@@ -28,7 +28,6 @@ var MockDBCfg = &config.DBConfig{
 func MockKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 	dbCfgCheck(dbCfg)
 	C2 = new(C2KV)
-	C2.dbCfg = dbCfg
 	memFlushC := make(chan *MemTable, dbCfg.MemConfig.MemTableNums)
 	C2.memTablePipe = make(chan *MemTable, dbCfg.MemConfig.MemTablePipeSize)
 	C2.immtableQ = NewMemTableQueue(dbCfg.MemConfig.MemTableNums)

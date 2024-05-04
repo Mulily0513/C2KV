@@ -38,7 +38,7 @@ type SST struct {
 func OpenSST(filePath string) (*SST, error) {
 	return &SST{
 		Id:    uint64(uuid.New().ID()),
-		fd:    iooperator.OpenBufferIOFile(filePath),
+		fd:    iooperator.OpenBufferIOFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666),
 		fName: filePath,
 	}, nil
 }
@@ -80,7 +80,7 @@ func (s *SST) Rename(fName string) {
 	}
 	s.fd.Close()
 	os.Rename(s.fName, fName)
-	s.fd = iooperator.OpenBufferIOFile(fName)
+	s.fd = iooperator.OpenBufferIOFile(fName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 	s.fName = fName
 }
 

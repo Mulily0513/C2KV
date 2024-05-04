@@ -36,10 +36,10 @@ type segment struct {
 	closed           bool
 }
 
-func NewSegmentFile(dirPath string, segmentSize int) (*segment, error) {
+func NewSegmentFile(dirPath string, segmentSize int) *segment {
 	fd, err := iooperator.OpenDirectIOFile(filepath.Join(dirPath, fmt.Sprintf("%s"+TMPSuffix, uuid.New().String())), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return nil, err
+		log.Panicf("create a new segment file error", err)
 	}
 
 	blockPool := NewBlockPool()
@@ -49,13 +49,13 @@ func NewSegmentFile(dirPath string, segmentSize int) (*segment, error) {
 		Fd:                 fd,
 		blockPool:          blockPool,
 		defaultSegmentSize: segmentSize,
-	}, nil
+	}
 }
 
-func OpenOldSegmentFile(walDirPath string, index uint64) (*segment, error) {
+func OpenOldSegmentFile(walDirPath string, index uint64) *segment {
 	fd, err := iooperator.OpenDirectIOFile(SegmentFileName(walDirPath, index), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return nil, err
+		log.Panicf("open old segment file error", err)
 	}
 
 	fileInfo, _ := fd.Stat()
@@ -70,7 +70,7 @@ func OpenOldSegmentFile(walDirPath string, index uint64) (*segment, error) {
 		Index:     index,
 		Fd:        fd,
 		blockNums: int(blockNums),
-	}, nil
+	}
 }
 
 func SegmentFileName(walDirPath string, index uint64) string {
@@ -347,9 +347,8 @@ func OpenRaftStateSegment(walDirPath, fileName string) (rSeg *raftStateSegment, 
 		return nil, err
 	}
 
-	_, err = fd.Seek(0, io.SeekStart)
-	if err != nil {
-		panic(fmt.Errorf("seek to the end of segment file %s failed: %v", ".SEG", err))
+	if _, err = fd.Seek(0, io.SeekStart); err != nil {
+		log.Panicf("seek to the end of segment file %s failed: %v", ".SEG", err)
 	}
 
 	blockPool := NewBlockPool()

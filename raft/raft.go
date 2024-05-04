@@ -124,13 +124,11 @@ func newRaft(opts *raftOpts) (r *raft) {
 		log.Panicf("verify raft options failed", err)
 	}
 
-	trk := tracker.MakeProgressTracker(opts.peers)
-
 	r = &raft{
 		id:               opts.Id,
 		lead:             None,
 		raftLog:          newRaftLog(opts.storage),
-		trk:              trk,
+		trk:              tracker.MakeProgressTracker(opts.peers),
 		msgs:             make([]*pb.Message, 0),
 		electionTimeout:  opts.electionTimeout,
 		heartbeatTimeout: opts.heartbeatTimeout,
@@ -531,7 +529,7 @@ func (r *raft) hup() {
 		if id == r.id {
 			continue
 		}
-		log.Infof("%x [logterm: %d, index: %d] sent %s request to %x at term %d", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
+		log.Infof("%x [logterm: %d, index: %d] sent %s vote request to %x at term %d", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
 		r.send(&pb.Message{Term: r.Term, From: r.id, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }

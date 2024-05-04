@@ -1,8 +1,8 @@
 package mocks
 
 import (
-	"github.com/ColdToo/Cold2DB/db/marshal"
-	"github.com/ColdToo/Cold2DB/pb"
+	"github.com/Mulily0513/C2KV/db/marshal"
+	"github.com/Mulily0513/C2KV/pb"
 )
 
 const CreatEntriesFmt = "create entries nums %d, data length %d, bytes count %s"

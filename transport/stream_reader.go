@@ -31,7 +31,7 @@ func startStreamReader(localID, peerId types.ID, peerIAddr, localIAddr string, n
 }
 
 func (cr *streamReader) run() {
-	cr.enc = cr.dial() //"首先dial()"
+	cr.enc = cr.dial()
 	for {
 		m, err := cr.enc.decodeAndRead()
 		if err != nil {

@@ -7,8 +7,8 @@ package mocks
 import (
 	reflect "reflect"
 
-	marshal "github.com/ColdToo/Cold2DB/db/marshal"
-	pb "github.com/ColdToo/Cold2DB/pb"
+	marshal "github.com/Mulily0513/C2KV/db/marshal"
+	pb "github.com/Mulily0513/C2KV/pb"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -135,17 +135,17 @@ func (mr *MockStorageMockRecorder) InitialState() *gomock.Call {
 }
 
 // PersistHardState mocks base method.
-func (m *MockStorage) PersistHardState(st pb.HardState, cs pb.ConfState) error {
+func (m *MockStorage) PersistHardState(hs pb.HardState, cs pb.ConfState) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PersistHardState", st, cs)
+	ret := m.ctrl.Call(m, "PersistHardState", hs, cs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // PersistHardState indicates an expected call of PersistHardState.
-func (mr *MockStorageMockRecorder) PersistHardState(st, cs interface{}) *gomock.Call {
+func (mr *MockStorageMockRecorder) PersistHardState(hs, cs interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistHardState", reflect.TypeOf((*MockStorage)(nil).PersistHardState), st, cs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistHardState", reflect.TypeOf((*MockStorage)(nil).PersistHardState), hs, cs)
 }
 
 // PersistUnstableEnts mocks base method.

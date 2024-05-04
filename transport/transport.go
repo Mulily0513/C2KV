@@ -41,7 +41,8 @@ func (t *Transport) ListenPeer(addr string) {
 	if err != nil {
 		log.Panic("start listening failed").Str("local id", t.LocalId.Str()).Str("addr", addr).Err("err", err).Record()
 	}
-	log.Infof("start listening, local ip : %s, addr : %s", t.LocalIAddr, addr)
+
+	log.Infof("start listening, local addr : %s", t.LocalIAddr)
 	for {
 	flag:
 		conn, err := ln.Accept()

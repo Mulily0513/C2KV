@@ -9,9 +9,9 @@ import (
 var conf config
 
 type config struct {
-	ZapConfig  ZapConfig  `yaml:"zapConfig"  json:"zapConfig"`
-	DbConfig   DBConfig   `yaml:"dbConfig"   json:"dbConfig"`
-	RaftConfig RaftConfig `yaml:"raftConfig" json:"raftConfig"`
+	ZapConfig  *ZapConfig  `yaml:"zapConfig"  json:"zapConfig"`
+	DbConfig   *DBConfig   `yaml:"dbConfig"   json:"dbConfig"`
+	RaftConfig *RaftConfig `yaml:"raftConfig" json:"raftConfig"`
 }
 
 func InitConfig(cfgPath string) {
@@ -31,15 +31,15 @@ func InitConfig(cfgPath string) {
 	})
 }
 
-func GetZapConf() ZapConfig {
+func GetZapConf() *ZapConfig {
 	return conf.ZapConfig
 }
 
-func GetRaftConf() RaftConfig {
+func GetRaftConf() *RaftConfig {
 	return conf.RaftConfig
 }
 
-func GetDBConf() DBConfig {
+func GetDBConf() *DBConfig {
 	return conf.DbConfig
 }
 

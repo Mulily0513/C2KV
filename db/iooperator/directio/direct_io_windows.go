@@ -37,7 +37,7 @@ func utf16FromString(s string) ([]uint16, error) {
 // addresses must be aligned on disk sector boundaries in memory.
 //
 // FIXME copied from go source then modified
-func OpenFile(path string, mode int, perm os.FileMode) (file *os.File, err error) {
+func openFile(path string, mode int, perm os.FileMode) (file *os.File, err error) {
 	if len(path) == 0 {
 		return nil, &os.PathError{"open", path, syscall.ERROR_FILE_NOT_FOUND}
 	}
@@ -84,7 +84,7 @@ func OpenFile(path string, mode int, perm os.FileMode) (file *os.File, err error
 }
 
 func OpenDirectFile(name string, flag int, perm os.FileMode) (file *os.File, err error) {
-	file, err = OpenFile(name, flag, perm)
+	file, err = openFile(name, flag, perm)
 	if err != nil {
 		return
 	}

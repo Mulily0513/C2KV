@@ -10,10 +10,10 @@ func OpenDirectIOFile(name string, flag int, perm os.FileMode) (file *os.File, e
 	return directio.OpenDirectFile(name, flag, perm)
 }
 
-func OpenBufferIOFile(path string) *os.File {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
+func OpenBufferIOFile(name string, flag int, perm os.FileMode) *os.File {
+	file, err := os.OpenFile(name, flag, perm)
 	if err != nil {
-		log.Panicf("", err)
+		log.Panicf("open buffer io file failed", err)
 	}
 	return file
 }

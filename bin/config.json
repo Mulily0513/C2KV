@@ -3,16 +3,16 @@
     "level": "info",
     "format": "console",
     "prefix": "[C2KV]",
-    "director": "log",
+    "director": "storagelog",
     "showLine": true,
     "encodeLevel": "LowercaseColorLevelEncoder",
     "logInConsole": "true",
     "maxAge": 10
   },
   "dbConfig": {
-    "dbPath": "./c2kv",
+    "dbPath": "./kvstorage",
     "walConfig": {
-      "walDirPath": "./c2kv/wal",
+      "walDirPath": "./kvstorage/wal",
       "segmentSize": 60
     },
     "memConfig": {
@@ -22,7 +22,7 @@
       "concurrency": 5
     },
     "valueLogConfig": {
-      "valueLogDir": "./c2kv/vlog",
+      "valueLogDir": "./kvstorage/vlog",
       "partitionNums": 3,
       "sstSize": 60
     }
@@ -31,22 +31,22 @@
     "electionTick": 10,
     "heartbeatTick": 1,
     "requestTimeOut": 10,
-    "eAddr": "172.16.60.96:2345",
+    "eAddr": "172.18.0.1:2345",
     "peers": [
       {
         "name": "node1",
         "id": 1,
-        "iAddr": "172.16.60.96:7878"
+        "iAddr": "172.18.0.11:7878"
       },
       {
         "name": "node2",
         "id": 2,
-        "iAddr": "172.16.60.97:7878"
+        "iAddr": "172.18.0.12:7878"
       },
       {
         "name": "node3",
         "id": 3,
-        "iAddr": "172.16.60.98:7878"
+        "iAddr": "172.18.0.13:7878"
       }
     ]
   }

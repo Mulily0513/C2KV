@@ -29,7 +29,7 @@ type AppNode struct {
 }
 
 func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, proposeC chan []byte, confChangeC chan pb.ConfChange,
-	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig config.RaftConfig, monitorKV map[int64]chan struct{}) {
+	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, monitorKV map[int64]chan struct{}) {
 	an := &AppNode{
 		localId:     localId,
 		localIAddr:  localIAddr,
@@ -65,7 +65,9 @@ func (an *AppNode) servePeerRaft() {
 	go an.transport.ListenPeer(an.localIAddr)
 
 	for _, peer := range an.peers {
-		an.transport.AddPeer(types.ID(peer.Id), peer.IAddr)
+		if peer.Id != an.localId {
+			an.transport.AddPeer(types.ID(peer.Id), peer.IAddr)
+		}
 	}
 }
 
@@ -80,7 +82,6 @@ func (an *AppNode) serveRaftNode() {
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
 			log.Debug("start handle ready").Record()
-			//todo 并发？
 			if !raft.IsEmptyHardState(rd.HardState) {
 				if err = an.kvStorage.PersistHardState(rd.HardState, rd.ConfState); err != nil {
 					log.Panicf("save hard state failed", err)

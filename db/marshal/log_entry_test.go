@@ -1,21 +1,11 @@
 package marshal
 
 import (
-	"github.com/ColdToo/Cold2DB/pb"
+	"github.com/Mulily0513/C2KV/pb"
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 )
-
-func MarshalWALEntries(entries1 []*pb.Entry) (data []byte, bytesCount int) {
-	data = make([]byte, 0)
-	for _, e := range entries1 {
-		wEntBytes, n := EncodeWALEntry(e)
-		data = append(data, wEntBytes...)
-		bytesCount += n
-	}
-	return
-}
 
 func TestEncodeANdDecodeWALEntry(t *testing.T) {
 	entry1 := &pb.Entry{

@@ -5,14 +5,11 @@ import (
 	"fmt"
 	"github.com/Mulily0513/C2KV/config"
 	"github.com/Mulily0513/C2KV/db/marshal"
-	"github.com/Mulily0513/C2KV/db/partition"
 	"github.com/google/uuid"
 	"math/rand"
 	"os"
 	"path"
 	"sort"
-	"sync"
-	"testing"
 	"time"
 )
 
@@ -20,12 +17,12 @@ const CreatKVsFmt = "create KVs nums %d, data valLen %d, bytes count %s"
 const PartitionFormat = "PARTITION_%d"
 
 var FilePath, _ = os.Getwd()
-var DBPath = fmt.Sprintf("%s/C2KV", FilePath)
-var WALPath = fmt.Sprintf("%s/WAL", DBPath)
-var ValueLogPath = fmt.Sprintf("%s/VLOG", DBPath)
+var DBPath = path.Join("./", "C2KV")
+var WALPath = path.Join(DBPath, "WAL")
+var ValueLogPath = path.Join(DBPath, "VLOG")
 
-var VlogPath = path.Join(FilePath, "VLOG")
-var VlogCfg = config.ValueLogConfig{ValueLogDir: VlogPath, PartitionNums: 3}
+var VlogCfg = config.ValueLogConfig{ValueLogDir: ValueLogPath, PartitionNums: 3}
+
 var partitionDir1 = path.Join(FilePath, fmt.Sprintf(PartitionFormat, 1))
 var partitionDir2 = path.Join(FilePath, fmt.Sprintf(PartitionFormat, 2))
 var partitionDir3 = path.Join(FilePath, fmt.Sprintf(PartitionFormat, 3))
@@ -136,37 +133,6 @@ func CreateRandomIndex(max int) int {
 	return rand.Intn(max)
 }
 
-func MockPartitionPersistKVs(partitionDir string, persistKVs []*marshal.KV) *partition.Partition {
-	CreatPartitionDirIfNotExist(partitionDir)
-	errC := make(chan error, 1)
-	p := partition.OpenPartition(partitionDir3)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	p.PersistKvs(persistKVs, wg, errC)
-	wg.Wait()
-	return p
-}
-
-func TestCreateKvs(t *testing.T) {
-	nums := 100
-	valLen := 250
-	kvs := CreateRandKVs(nums, valLen, true)
-	fmt.Printf(CreatKVsFmt, nums, valLen, ConvertSize(marshalKVs(kvs)))
-}
-
-func ConvertSize(size int) string {
-	units := []string{"B", "KB", "MB", "GB"}
-	if size == 0 {
-		return "0" + units[0]
-	}
-	i := 0
-	for size >= 1024 {
-		size /= 1024
-		i++
-	}
-	return fmt.Sprintf("%.f", float64(size)) + units[i]
-}
-
 func KVsTransToByteKVs(kvs []*marshal.KV) []*marshal.BytesKV {
 	bytesKvs := make([]*marshal.BytesKV, 0)
 	for _, kv := range kvs {
@@ -178,7 +144,7 @@ func KVsTransToByteKVs(kvs []*marshal.KV) []*marshal.BytesKV {
 func CreateValueLogDirIfNotExist(vlogDir string) {
 	if _, err := os.Stat(vlogDir); err != nil {
 		if err := os.Mkdir(vlogDir, 0755); err != nil {
-			println(err)
+			panic(err)
 		}
 	}
 }
