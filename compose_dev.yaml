@@ -23,10 +23,13 @@ services:
       mynetwork:
         ipv4_address: 172.18.0.11
     develop:
+      #watch似乎有bug先使用卷挂载代替
       watch:
         - path: ./
           target: /app/
           action: sync
+    volumes:
+      - ./:/app/
   node2:
     build:
       context: ./
@@ -45,7 +48,8 @@ services:
         - path: ./
           target: /app/
           action: sync
-
+    volumes:
+      - ./:/app/
   node3:
     build:
       context: ./
@@ -64,6 +68,8 @@ services:
         - path: ./
           target: /app/
           action: sync
+      volumes:
+        - ./:/app/
 networks:
   mynetwork:
     driver: bridge
