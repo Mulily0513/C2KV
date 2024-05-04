@@ -1,0 +1,79 @@
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Docker compose reference guide at
+# https://docs.docker.com/compose/compose-file/
+
+# Here the instructions define your application as two services called "todo-app" and “todo-database”
+# The service “todo-app” is built from the Dockerfile in the /app directory,
+# and the service “todo-database” uses the official MongoDB image 
+# from Docker Hub - https://hub.docker.com/_/mongo. 
+# You can add other services your application may depend on here.
+
+services:
+  node1:
+    build:
+      context: ./
+      dockerfile: Dockerfile-dev
+    #dlv debug
+    ports:
+      - 40001:40000
+      # ssh
+      - 21:22
+    tty: true
+    networks:
+      mynetwork:
+        ipv4_address: 172.18.0.11
+    develop:
+      watch:
+        #- path: ./
+        # action: rebuild
+        - path: ./
+          target: /usr/src/app
+          action: sync
+  node2:
+    build:
+      context: ./
+      dockerfile: Dockerfile-dev
+    #dlv debug
+    ports:
+      - 40002:40000
+    # ssh
+      - 22:22
+    tty: true
+    networks:
+      mynetwork:
+        ipv4_address: 172.18.0.12
+    develop:
+      watch:
+        #- path: ./
+        # action: rebuild
+        - path: ./
+          target: /usr/src/app
+          action: sync
+
+  node3:
+    build:
+      context: ./
+      dockerfile: Dockerfile-dev
+    #dlv debug
+    ports:
+      - 40003:40000
+      # ssh
+      - 23:22
+    tty: true
+    networks:
+      mynetwork:
+        ipv4_address: 172.18.0.13
+    develop:
+      watch:
+        #- path: ./
+        # action: rebuild
+        - path: ./
+          target: /usr/src/app
+          action: sync
+networks:
+  mynetwork:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
