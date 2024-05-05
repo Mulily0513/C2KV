@@ -31,7 +31,7 @@
     "electionTick": 10,
     "heartbeatTick": 1,
     "requestTimeOut": 10,
-    "eAddr": "172.18.0.1:2345",
+    "eAddr": "172.18.0.13:2345",
     "peers": [
       {
         "name": "node1",

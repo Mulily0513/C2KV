@@ -20,5 +20,7 @@ CMD ["/usr/sbin/sshd","-D"]
 
 EXPOSE 2345 7878
 
-#CMD ["dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "./c2kv"]
-#"dlv --listen=:40000 --headless=true", "--api-version=2", "--accept-multiclient", "exec", "./c2kv"
+# dlv debug
+# /go/bin/dlv --listen=:40000 --headless=true --api-version=2 --accept-multiclient exec ./c2kv
+# 编译
+# /usr/local/go/bin/go build -o c2kv
