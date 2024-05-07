@@ -39,7 +39,6 @@ func startStreamWriter(localId, peerId types.ID, peerIAddr, localIAddr string, n
 
 func (cw *streamWriter) run() {
 	var msgC chan *pb.Message
-	log.Infof("started stream writer run, local ip : %s remote ip : %s", cw.localIAddr, cw.peerIAddr)
 	for {
 		select {
 		case m := <-msgC:
@@ -52,7 +51,7 @@ func (cw *streamWriter) run() {
 			cw.close()
 			cw.enc = &msgEncoderAndWriter{conn}
 			msgC = cw.msgC
-			log.Infof("established TCP streaming connection, local ip : %s, remote ip : %s", cw.localIAddr, cw.peerIAddr)
+			log.Infof("TCP connection access success, start streamWriter, local ip : %s, remote ip : %s", cw.localIAddr, cw.peerIAddr)
 		}
 	}
 }

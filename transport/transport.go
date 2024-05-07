@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"github.com/Mulily0513/C2KV/code"
 	"github.com/Mulily0513/C2KV/log"
 	"github.com/Mulily0513/C2KV/pb"
 	"github.com/Mulily0513/C2KV/transport/types"
@@ -39,7 +38,7 @@ type Transport struct {
 func (t *Transport) ListenPeer(addr string) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Panic("start listening failed").Str("local id", t.LocalId.Str()).Str("addr", addr).Err("err", err).Record()
+		log.Panicf("start listening failed %s", t.LocalIAddr)
 	}
 
 	log.Infof("start listening, local addr : %s", t.LocalIAddr)
@@ -91,7 +90,6 @@ func (t *Transport) AddPeer(peerID types.ID, peerIAddr string) {
 		}
 	}()
 	t.Peers[peerID] = p
-	log.Info("add remote peer success").Str(code.LocalId, t.LocalId.Str()).Str(code.RemoteId, peerID.Str()).Record()
 }
 
 func (t *Transport) Send(msgs []*pb.Message) {

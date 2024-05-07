@@ -23,7 +23,17 @@ services:
       mynetwork:
         ipv4_address: 172.18.0.11
     volumes:
-      - ./:/app/
+      - ./app:/app/app
+      - ./client:/app/client
+      - ./code:/app/code
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./log:/app/log
+      - ./pb:/app/pb
+      - ./raft:/app/raft
+      - ./transport:/app/transport
+      - ./utils:/app/utils
+      - ./main.go:/app/main.go
   node2:
     build:
       context: ./
@@ -38,7 +48,17 @@ services:
       mynetwork:
         ipv4_address: 172.18.0.12
     volumes:
-      - ./:/app/
+      - ./app:/app/app
+      - ./client:/app/client
+      - ./code:/app/code
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./log:/app/log
+      - ./pb:/app/pb
+      - ./raft:/app/raft
+      - ./transport:/app/transport
+      - ./utils:/app/utils
+      - ./main.go:/app/main.go
   node3:
     build:
       context: ./
@@ -53,7 +73,17 @@ services:
       mynetwork:
         ipv4_address: 172.18.0.13
     volumes:
-      - ./:/app/
+      - ./app:/app/app
+      - ./client:/app/client
+      - ./code:/app/code
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./log:/app/log
+      - ./pb:/app/pb
+      - ./raft:/app/raft
+      - ./transport:/app/transport
+      - ./utils:/app/utils
+      - ./main.go:/app/main.go
 networks:
   mynetwork:
     driver: bridge

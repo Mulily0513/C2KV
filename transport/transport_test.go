@@ -79,14 +79,13 @@ func TestListenPeerConn(t *testing.T) {
 
 func initLog() {
 	cfg := &config.ZapConfig{
-		Level:         "debug",
-		Format:        "console",
-		Prefix:        "[Cold2DB]",
-		Director:      "./log",
-		ShowLine:      true,
-		EncodeLevel:   "LowercaseColorLevelEncoder",
-		StacktraceKey: "stacktrace",
-		LogInConsole:  true,
+		Level:        "debug",
+		Format:       "console",
+		Prefix:       "[Cold2DB]",
+		Director:     "./log",
+		ShowLine:     true,
+		EncodeLevel:  "LowercaseColorLevelEncoder",
+		LogInConsole: true,
 	}
 	log.InitLog(cfg)
 }

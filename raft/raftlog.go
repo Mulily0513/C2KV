@@ -245,11 +245,11 @@ func (l *raftLog) truncateAndAppend(ents []*pb.Entry) {
 		l.offset = after
 		l.unstableEnts = ents
 	case after >= l.offset:
-		log.Debugf("truncate the unstable entries before index %d", after)
+		log.Infof("truncate the unstable entries before index %d", after)
 		l.unstableEnts = append([]*pb.Entry{}, l.unstableEnts[:after-l.offset]...)
 		l.unstableEnts = append(l.unstableEnts, ents...)
 	default:
-		log.Panicf("unexpected truncateAndAppend case")
+		log.Infof("unexpected truncateAndAppend case")
 	}
 }
 
@@ -315,7 +315,7 @@ func (l *raftLog) appliedTo(i uint64) {
 	if i == 0 {
 		return
 	}
-	if l.committed < i || i < l.applied {
+	if i > l.committed || i < l.applied {
 		log.Panicf("applied(%d) is out of range [prevApplied(%d), committed(%d)]", i, l.applied, l.committed)
 	}
 	l.applied = i

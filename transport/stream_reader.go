@@ -5,6 +5,7 @@ import (
 	"github.com/Mulily0513/C2KV/pb"
 	"github.com/Mulily0513/C2KV/transport/types"
 	"net"
+	"time"
 )
 
 type streamReader struct {
@@ -53,10 +54,11 @@ func (cr *streamReader) dial() *msgDecoderAndReader {
 	for {
 		Conn, err := net.Dial("tcp", cr.peerIAddr)
 		if err != nil {
-			log.Errorf("start dial remote peer from %s to %s failed %v", cr.localId.Str(), cr.peerId.Str(), err)
+			time.Sleep(time.Second)
+			log.Errorf("start dial remote peer from %s to %s failed %v", cr.localIAddr, cr.localIAddr, err)
 			continue
 		}
-		log.Infof("start dial remote peer from %s to %s success", cr.localId.Str(), cr.peerId.Str())
+		log.Infof("start dial remote peer from %s to %s success", cr.localIAddr, cr.peerIAddr)
 		return &msgDecoderAndReader{Conn}
 	}
 }

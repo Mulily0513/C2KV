@@ -141,7 +141,7 @@ func newRaft(opts *raftOpts) (r *raft) {
 
 	r.becomeFollower(InitialTerm, None)
 
-	log.Infof("new raft node start , id: %x [ peers: [%s], term: %d, commit: %d, applied: %d, lastindex: %d, lastterm: %d ]",
+	log.Infof("new raft node(id:%x) start,  peers(%s), term: %d, commit: %d, applied: %d, lastindex: %d, lastterm: %d",
 		r.id, strings.Join(r.trk.VoterNodesStr(), ","), r.Term, r.raftLog.committed, r.raftLog.applied, r.raftLog.lastIndex(), r.raftLog.lastTerm())
 	return
 }
@@ -208,7 +208,7 @@ func (r *raft) becomeCandidate() {
 	r.tick = r.tickElection
 	r.vote = r.id
 	r.state = StateCandidate
-	log.Infof("peer %x became candidate at term %d", r.id, r.Term)
+	log.Infof("node(id:%x) became candidate at term %d", r.id, r.Term)
 }
 
 func (r *raft) tickElection() {
@@ -254,13 +254,13 @@ func (r *raft) Step(m *pb.Message) {
 	case pb.MsgVote:
 		canVote := r.vote == m.From || (r.vote == None && r.lead == None)
 		if canVote && r.raftLog.isUpToDate(m.Index, m.LogTerm) {
-			log.Infof("%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d",
+			log.Infof("node(id:%x) [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(&pb.Message{From: r.id, To: m.From, Term: m.Term, Type: voteRespMsgType(m.Type), Reject: false})
 			r.electionElapsed = 0
 			r.vote = m.From
 		} else {
-			log.Infof("%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d",
+			log.Infof("node(id:%x) [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(&pb.Message{From: r.id, To: m.From, Term: r.Term, Type: voteRespMsgType(m.Type), Reject: true})
 		}
@@ -518,8 +518,7 @@ func (r *raft) hup() {
 		log.Warnf("%x ignoring MsgHup because already leader", r.id)
 		return
 	}
-
-	log.Infof("%x is starting a new election at term %d", r.id, r.Term)
+	log.Infof("node(id:%x) is starting a new election at term %d", r.id, r.Term)
 	r.becomeCandidate()
 	if _, _, res := r.poll(r.id, voteRespMsgType(pb.MsgVote), true); res == quorum.VoteWon {
 		r.becomeLeader()
@@ -529,7 +528,7 @@ func (r *raft) hup() {
 		if id == r.id {
 			continue
 		}
-		log.Infof("%x [logterm: %d, index: %d] sent %s vote request to %x at term %d", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
+		log.Infof("node(id:%x)  sent %s request to %x at term %d", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
 		r.send(&pb.Message{Term: r.Term, From: r.id, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }
@@ -560,9 +559,9 @@ func (r *raft) sendAllRequestVote() {
 // id   t 预选举或选举 v 是否拒绝
 func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected int, result quorum.VoteResult) {
 	if v {
-		log.Infof("%x received %s from %x at term %d", r.id, t, id, r.Term)
+		log.Infof("node(id:%x) received %s from node(id:%x) at term %d", r.id, t, id, r.Term)
 	} else {
-		log.Infof("%x received %s rejection from %x at term %d", r.id, t, id, r.Term)
+		log.Infof("node(id:%x) received %s rejection from node(id:%x) at term %d", r.id, t, id, r.Term)
 	}
 	r.trk.RecordVote(id, v)
 	return r.trk.TallyVotes()

@@ -49,7 +49,6 @@ func GetLocalInfo() (localIAddr string, localEAddr string, localId uint64, peers
 		if strings.Split(raftConf.EAddr, ":")[0] == strings.Split(peer.IAddr, ":")[0] {
 			localId = peer.Id
 			localIAddr = peer.IAddr
-			localIAddr = raftConf.EAddr
 		}
 		peers = append(peers, peer)
 	}
