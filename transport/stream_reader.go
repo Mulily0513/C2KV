@@ -54,11 +54,12 @@ func (cr *streamReader) dial() *msgDecoderAndReader {
 	for {
 		Conn, err := net.Dial("tcp", cr.peerIAddr)
 		if err != nil {
+			//todo
 			time.Sleep(time.Second)
-			log.Errorf("start dial remote peer from %s to %s failed %v", cr.localIAddr, cr.localIAddr, err)
+			log.Errorf("dial remote peer from %s to %s failed %v", cr.localIAddr, cr.peerIAddr, err)
 			continue
 		}
-		log.Infof("start dial remote peer from %s to %s success", cr.localIAddr, cr.peerIAddr)
+		log.Infof("dial remote peer from %s to %s success", cr.localIAddr, cr.peerIAddr)
 		return &msgDecoderAndReader{Conn}
 	}
 }

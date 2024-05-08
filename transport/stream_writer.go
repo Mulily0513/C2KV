@@ -47,7 +47,7 @@ func (cw *streamWriter) run() {
 				log.Errorf("lost TCP streaming connection , local ip : %s remote ip : %s ,err : %v", cw.localIAddr, cw.peerIAddr, err)
 				cw.close()
 			}
-		case conn := <-cw.connC: //"attachconn执行后，connC中有数据，然后发数据"
+		case conn := <-cw.connC:
 			cw.close()
 			cw.enc = &msgEncoderAndWriter{conn}
 			msgC = cw.msgC

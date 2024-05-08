@@ -15,11 +15,11 @@ type RaftOperator interface {
 
 //go:generate mockgen -source=./transport.go -destination=./mocks/transport.go -package=mock
 type Transporter interface {
-	ListenPeer(localIp string)
+	ListenPeer(ln net.Listener)
 
 	Send(m []*pb.Message)
 
-	AddPeer(id types.ID, url string)
+	AddPeer(id types.ID, IAddr string)
 
 	Stop()
 }
@@ -35,22 +35,16 @@ type Transport struct {
 	StopC chan struct{}
 }
 
-func (t *Transport) ListenPeer(addr string) {
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Panicf("start listening failed %s", t.LocalIAddr)
-	}
-
-	log.Infof("start listening, local addr : %s", t.LocalIAddr)
+func (t *Transport) ListenPeer(ln net.Listener) {
 	for {
 	flag:
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Error("Accept tcp err").Record()
+			log.Errorf("Accept tcp err:%v", err)
+			continue
 		}
 
 		remoteAddr := strings.Split(conn.RemoteAddr().String(), ":")
-
 		for _, v := range t.Peers {
 			p := v.(*peer)
 			if len(remoteAddr) == 2 && strings.Contains(p.peerAddr, remoteAddr[0]) {
@@ -58,7 +52,7 @@ func (t *Transport) ListenPeer(addr string) {
 				goto flag
 			}
 		}
-		log.Warnf("get wrong conn the remote ip addr:%s drop it", remoteAddr)
+		log.Warnf("get wrong conn(remote ip addr:%s) drop it", remoteAddr)
 		conn.Close()
 	}
 }
@@ -66,19 +60,18 @@ func (t *Transport) ListenPeer(addr string) {
 func (t *Transport) AddPeer(peerID types.ID, peerIAddr string) {
 	receiveC := make(chan *pb.Message, recvBufSize)
 	netErrC := make(chan error, 1)
-	streamReader := startStreamReader(t.LocalId, peerID, peerIAddr, t.LocalIAddr, netErrC, receiveC)
-	streamWriter := startStreamWriter(t.LocalId, peerID, peerIAddr, t.LocalIAddr, netErrC)
 	p := &peer{
-		localId:      t.LocalId,
-		localIAddr:   t.LocalIAddr,
-		peerId:       peerID,
-		peerAddr:     peerIAddr,
-		raft:         t.RaftOperator,
-		streamWriter: streamWriter,
-		streamReader: streamReader,
-		recvC:        receiveC,
-		stopC:        t.StopC,
+		localId:    t.LocalId,
+		localIAddr: t.LocalIAddr,
+		peerId:     peerID,
+		peerAddr:   peerIAddr,
+		raft:       t.RaftOperator,
+		recvC:      receiveC,
+		stopC:      t.StopC,
 	}
+	t.Peers[peerID] = p
+	p.streamReader = startStreamReader(t.LocalId, peerID, peerIAddr, t.LocalIAddr, netErrC, receiveC)
+	p.streamWriter = startStreamWriter(t.LocalId, peerID, peerIAddr, t.LocalIAddr, netErrC)
 	go func() {
 		for {
 			select {
@@ -89,7 +82,6 @@ func (t *Transport) AddPeer(peerID types.ID, peerIAddr string) {
 			}
 		}
 	}()
-	t.Peers[peerID] = p
 }
 
 func (t *Transport) Send(msgs []*pb.Message) {

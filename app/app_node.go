@@ -9,13 +9,13 @@ import (
 	"github.com/Mulily0513/C2KV/raft"
 	"github.com/Mulily0513/C2KV/transport"
 	"github.com/Mulily0513/C2KV/transport/types"
+	"net"
 	"time"
 )
 
 type AppNode struct {
 	localId    uint64
 	localIAddr string
-	localEAddr string
 	peers      []config.Peer
 	monitorKV  map[int64]chan struct{}
 
@@ -43,7 +43,8 @@ func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, propos
 
 	// 完成当前节点与集群中其他节点之间的网络连接
 	an.servePeerRaft()
-	// 启动Raft
+
+	// 启动Raft算法层
 	an.raftNode = raft.StartRaftNode(localId, raftConfig, kvStorage)
 	// 启动一个goroutine,处理appNode与raftNode的交互
 	go an.serveRaftNode()
@@ -62,13 +63,19 @@ func (an *AppNode) servePeerRaft() {
 		StopC:        make(chan struct{}),
 	}
 
-	go an.transport.ListenPeer(an.localIAddr)
+	log.Infof("start listening, local addr : %s", an.localIAddr)
+	ln, err := net.Listen("tcp", an.localIAddr)
+	if err != nil {
+		log.Panicf("start listening failed %s", an.localIAddr)
+	}
 
 	for _, peer := range an.peers {
 		if peer.Id != an.localId {
 			an.transport.AddPeer(types.ID(peer.Id), peer.IAddr)
 		}
 	}
+
+	go an.transport.ListenPeer(ln)
 }
 
 func (an *AppNode) serveRaftNode() {
@@ -82,6 +89,7 @@ func (an *AppNode) serveRaftNode() {
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
 			log.Info("start handle ready").Record()
+			log.Infof("ready:%v", rd)
 			if !raft.IsEmptyHardState(rd.HardState) {
 				if err = an.kvStorage.PersistHardState(rd.HardState, rd.ConfState); err != nil {
 					log.Panicf("save hard state failed", err)

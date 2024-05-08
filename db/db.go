@@ -301,10 +301,6 @@ func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry) error {
 		return nil
 	}
 
-	if db.lastIndex()+1 != db.firstIndex() {
-		log.Panicf("should not happen")
-	}
-
 	err := db.wal.Write(entries)
 	if err != nil {
 		return err

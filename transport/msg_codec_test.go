@@ -2,9 +2,9 @@ package transport
 
 import (
 	"fmt"
-	"github.com/ColdToo/Cold2DB/config"
-	"github.com/ColdToo/Cold2DB/log"
-	"github.com/ColdToo/Cold2DB/pb"
+	"github.com/Mulily0513/C2KV/config"
+	"github.com/Mulily0513/C2KV/log"
+	"github.com/Mulily0513/C2KV/pb"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
@@ -54,14 +54,13 @@ var (
 
 func InitLog() {
 	cfg := &config.ZapConfig{
-		Level:         "debug",
-		Format:        "console",
-		Prefix:        "[C2KV]",
-		Director:      "./log",
-		ShowLine:      true,
-		EncodeLevel:   "LowercaseColorLevelEncoder",
-		StacktraceKey: "stacktrace",
-		LogInConsole:  true,
+		Level:        "debug",
+		Format:       "console",
+		Prefix:       "[C2KV]",
+		Director:     "./log",
+		ShowLine:     true,
+		EncodeLevel:  "LowercaseColorLevelEncoder",
+		LogInConsole: true,
 	}
 	log.InitLog(cfg)
 }
