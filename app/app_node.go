@@ -63,7 +63,7 @@ func (an *AppNode) servePeerRaft() {
 		StopC:        make(chan struct{}),
 	}
 
-	log.Infof("start listening, local addr : %s", an.localIAddr)
+	log.Infof("node(id:%d)start listening, local addr : %s", an.localId, an.localIAddr)
 	ln, err := net.Listen("tcp", an.localIAddr)
 	if err != nil {
 		log.Panicf("start listening failed %s", an.localIAddr)
@@ -88,10 +88,10 @@ func (an *AppNode) serveRaftNode() {
 		case <-ticker.C:
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
-			log.Info("start handle ready").Record()
-			log.Infof("ready:%v", rd)
+			log.Infof("start handle ready")
+			log.Infof("ready:%+v", rd)
 			if !raft.IsEmptyHardState(rd.HardState) {
-				if err = an.kvStorage.PersistHardState(rd.HardState, rd.ConfState); err != nil {
+				if err = an.kvStorage.PersistHardState(rd.HardState); err != nil {
 					log.Panicf("save hard state failed", err)
 				}
 			}
@@ -114,7 +114,7 @@ func (an *AppNode) serveRaftNode() {
 
 			//通知raftNode本轮ready已经处理完可以进行下一轮处理
 			an.raftNode.Advance()
-			log.Info("handle ready success").Record()
+			log.Infof("handle ready success")
 		}
 	}
 }

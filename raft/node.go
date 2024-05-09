@@ -208,11 +208,11 @@ type Ready struct {
 
 	HardState pb.HardState
 
-	ConfState pb.ConfState
+	//ConfState pb.ConfState
 
 	//  specifies entries to be saved to stable storage BEFORE
 	// Messages are sent.
-	UnstableEntries []*pb.Entry //需要持久化的entries
+	UnstableEntries []*pb.Entry
 
 	// CommittedEntries specifies entries to be committed to a
 	// store/state-machine. These have previously been committed to stable

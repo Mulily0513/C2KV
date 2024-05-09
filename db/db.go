@@ -25,7 +25,7 @@ type Storage interface {
 	Apply(kvs []*marshal.KV) error
 
 	PersistUnstableEnts(entries []*pb.Entry) error
-	PersistHardState(hs pb.HardState, cs pb.ConfState) error
+	PersistHardState(hs pb.HardState) error
 	InitialState() (hs pb.HardState, cs pb.ConfState)
 
 	Entries(lo, hi uint64) ([]*pb.Entry, error)
@@ -309,7 +309,7 @@ func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry) error {
 	return nil
 }
 
-func (db *C2KV) PersistHardState(st pb.HardState, cs pb.ConfState) error {
+func (db *C2KV) PersistHardState(st pb.HardState) error {
 	db.wal.RaftStateSegment.RaftState = st
 	return db.wal.RaftStateSegment.Flush()
 }

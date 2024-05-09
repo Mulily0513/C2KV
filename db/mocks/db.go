@@ -135,17 +135,17 @@ func (mr *MockStorageMockRecorder) InitialState() *gomock.Call {
 }
 
 // PersistHardState mocks base method.
-func (m *MockStorage) PersistHardState(hs pb.HardState, cs pb.ConfState) error {
+func (m *MockStorage) PersistHardState(hs pb.HardState) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PersistHardState", hs, cs)
+	ret := m.ctrl.Call(m, "PersistHardState", hs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // PersistHardState indicates an expected call of PersistHardState.
-func (mr *MockStorageMockRecorder) PersistHardState(hs, cs interface{}) *gomock.Call {
+func (mr *MockStorageMockRecorder) PersistHardState(hs interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistHardState", reflect.TypeOf((*MockStorage)(nil).PersistHardState), hs, cs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistHardState", reflect.TypeOf((*MockStorage)(nil).PersistHardState), hs)
 }
 
 // PersistUnstableEnts mocks base method.

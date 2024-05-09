@@ -153,7 +153,7 @@ func (r *raft) hardState() pb.HardState {
 
 func (r *raft) becomeLeader() {
 	if r.state == StateFollower {
-		log.Panic("invalid transition [follower -> leader]").Record()
+		log.Panicf("invalid transition [follower -> leader]")
 	}
 	r.stepFunc = stepLeader
 	r.tick = r.tickHeartbeat
@@ -166,12 +166,13 @@ func (r *raft) becomeLeader() {
 	lastIndex := r.raftLog.lastIndex()
 	for pr := range r.trk.Progress {
 		r.trk.Progress[pr].Next = lastIndex + 1
-		r.trk.Progress[pr].Match = 0
+		if pr == r.id {
+			// 更新leader的match为last index
+			r.trk.Progress[r.id].Match = lastIndex
+		} else {
+			r.trk.Progress[pr].Match = 0
+		}
 	}
-
-	// 更新leader 的 match 和 next
-	r.trk.Progress[r.id].Next = lastIndex + 1
-	r.trk.Progress[r.id].Match = lastIndex
 
 	//在成为leader后需要插入一条空日志
 	emptyEnt := pb.Entry{Data: nil}
@@ -212,7 +213,6 @@ func (r *raft) tickHeartbeat() {
 	//选举超时，开始选举
 	if r.electionElapsed >= r.electionTimeout {
 		r.electionElapsed = 0
-		// If current leader cannot transfer leadership in electionTimeout, cancel leader transfer
 		r.becomeCandidate()
 		r.sendAllRequestVote()
 	}
@@ -226,7 +226,7 @@ func (r *raft) tickHeartbeat() {
 
 func (r *raft) Step(m *pb.Message) {
 	if m.Term > r.Term {
-		log.Infof("peer: %x [term: %d] received a %s message with higher term from peer:%x [term: %d]", r.id, r.Term, m.Type, m.From, m.Term)
+		log.Infof("node(id:%x term: %d) received a %s message with higher term from peer:%x [term: %d]", r.id, r.Term, m.Type, m.From, m.Term)
 		if m.Type == pb.MsgApp || m.Type == pb.MsgHeartbeat {
 			r.becomeFollower(m.Term, m.From)
 		} else {
@@ -240,7 +240,7 @@ func (r *raft) Step(m *pb.Message) {
 	case pb.MsgVote:
 		canVote := r.vote == m.From || (r.vote == None && r.lead == None)
 		if canVote && r.raftLog.isUpToDate(m.Index, m.LogTerm) {
-			log.Infof("node(id:%x) [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d",
+			log.Infof("node(id:%x logterm: %d, index: %d, vote: %x) approve %s from node(id:%x logterm: %d, index: %d) at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(&pb.Message{From: r.id, To: m.From, Term: m.Term, Type: voteRespMsgType(m.Type), Reject: false})
 			r.electionElapsed = 0
@@ -514,14 +514,14 @@ func (r *raft) hup() {
 		if id == r.id {
 			continue
 		}
-		log.Infof("node(id:%x)  sent %s request to %x at term %d", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
+		log.Infof("node(id:%x lastterm:%x lastindex:%x) sent %s to %x at term %x", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
 		r.send(&pb.Message{Term: r.Term, From: r.id, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }
 
 func (r *raft) handleRequestVoteResponse(m *pb.Message) {
 	gr, rj, res := r.poll(m.From, m.Type, !m.Reject)
-	log.Infof("%x has received %d %s votes and %d vote rejections", r.id, gr, m.Type, rj)
+	log.Infof("node(id:%x) has received %d %s approval votes and %d vote rejections", r.id, gr, m.Type, rj)
 	switch res {
 	case quorum.VoteWon:
 		r.becomeLeader()
@@ -544,10 +544,13 @@ func (r *raft) sendAllRequestVote() {
 
 // id   t 预选举或选举 v 是否拒绝
 func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected int, result quorum.VoteResult) {
-	if v {
-		log.Infof("node(id:%x) received %s from node(id:%x) at term %d", r.id, t, id, r.Term)
-	} else {
-		log.Infof("node(id:%x) received %s rejection from node(id:%x) at term %d", r.id, t, id, r.Term)
+	//本节点不做日志记录
+	if id != r.id {
+		if v {
+			log.Infof("node(id:%x) received %s from node(id:%x) at term %d", r.id, t, id, r.Term)
+		} else {
+			log.Infof("node(id:%x) received %s rejection from node(id:%x) at term %d", r.id, t, id, r.Term)
+		}
 	}
 	r.trk.RecordVote(id, v)
 	return r.trk.TallyVotes()
