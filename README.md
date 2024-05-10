@@ -7,7 +7,7 @@
 ├─client   //客户端工具
 ├─code     //全局自定义的错误码
 ├─config   //kv存储配置相关model
-├─db       //存储引擎相关
+├─db       //存储层，负责持久化日志，用户数据以及一些必要的状态信息
 │  ├─arenaskl   //无锁跳表
 │  ├─iooperator //io方式包括direct io和mmap
 │  ├─marshal    //kv的序列化和反序列化
@@ -17,7 +17,7 @@
 ├─log        //主要是对zap日志库进行了二次封装，支持普通log和sugaredLog，前者性能更高
 ├─pb         //proto文件 
 ├─raft       //raft相关
-├─transport  //集群内部网络传输相关
+├─transport  //传输层，负责集群内部网络传输相关
 └─utils
 ~~~
 # 项目文档
