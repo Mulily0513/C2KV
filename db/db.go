@@ -321,12 +321,8 @@ func (db *C2KV) Truncate(index uint64) error {
 }
 
 func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
-	if lo < db.firstIndex() || hi > db.lastIndex() {
+	if lo < db.firstIndex() || hi > db.lastIndex()+1 {
 		return nil, errors.New("some entries is compacted")
-	}
-
-	if hi > db.lastIndex() {
-		log.Panicf("entries' hi(%d) is out of bound lastindex(%d)", hi, db.lastIndex())
 	}
 
 	offset := db.entries[0].Index

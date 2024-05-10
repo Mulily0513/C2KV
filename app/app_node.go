@@ -89,7 +89,6 @@ func (an *AppNode) serveRaftNode() {
 		case <-ticker.C:
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
-			log.Infof("start handle ready")
 			log.Infof("ready:%+v", rd)
 			if !raft.IsEmptyHardState(rd.HardState) {
 				if err = an.kvStorage.PersistHardState(rd.HardState); err != nil {
@@ -115,7 +114,6 @@ func (an *AppNode) serveRaftNode() {
 
 			//通知raftNode本轮ready已经处理完可以进行下一轮处理
 			an.raftNode.Advance()
-			log.Infof("handle ready success")
 		}
 	}
 }

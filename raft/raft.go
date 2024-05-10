@@ -177,7 +177,7 @@ func (r *raft) becomeLeader() {
 	//在成为leader后需要插入一条空日志
 	emptyEnt := pb.Entry{Data: nil}
 	r.appendEntry(emptyEnt)
-	log.Infof("peer:%x became leader at term %d", r.id, r.Term)
+	log.Infof("node(id:%x) became leader at term %d", r.id, r.Term)
 }
 
 func (r *raft) becomeFollower(term uint64, lead uint64) {
@@ -186,7 +186,7 @@ func (r *raft) becomeFollower(term uint64, lead uint64) {
 	r.tick = r.tickElection
 	r.state = StateFollower
 	r.lead = lead
-	log.Infof("node %x became follower at term %d leader is %d", r.id, r.Term, lead)
+	log.Infof("node(id:%x) became follower at term %d leader is %d", r.id, r.Term, lead)
 }
 
 func (r *raft) becomeCandidate() {
@@ -198,23 +198,24 @@ func (r *raft) becomeCandidate() {
 	log.Infof("node(id:%x) became candidate at term %d", r.id, r.Term)
 }
 
+// tickElection is run by followers and candidates,
 func (r *raft) tickElection() {
 	r.electionElapsed++
 	if r.electionElapsed >= r.randomizedElectionTimeout {
+		log.Warnf("node(id:%x) election timeout, start election", r.id)
 		r.electionElapsed = 0
 		r.Step(&pb.Message{From: r.id, Type: pb.MsgHup})
 	}
 }
 
+// tickHeartbeat is run by leaders to send a MsgBeat after r.heartbeatTimeout.
 func (r *raft) tickHeartbeat() {
 	r.heartbeatElapsed++
 	r.electionElapsed++
 
-	//选举超时，开始选举
 	if r.electionElapsed >= r.electionTimeout {
 		r.electionElapsed = 0
-		r.becomeCandidate()
-		r.sendAllRequestVote()
+		//todo leader check Quorum
 	}
 
 	//心跳超时，发送心跳
@@ -226,7 +227,7 @@ func (r *raft) tickHeartbeat() {
 
 func (r *raft) Step(m *pb.Message) {
 	if m.Term > r.Term {
-		log.Infof("node(id:%x term: %d) received a %s message with higher term from peer:%x [term: %d]", r.id, r.Term, m.Type, m.From, m.Term)
+		log.Infof("node(id:%x term: %d) received a %s message with higher term from node(id:%x term: %d)", r.id, r.Term, m.Type, m.From, m.Term)
 		if m.Type == pb.MsgApp || m.Type == pb.MsgHeartbeat {
 			r.becomeFollower(m.Term, m.From)
 		} else {
@@ -390,13 +391,12 @@ func (r *raft) handleAppendResponse(m *pb.Message) {
 
 	//update next、match index
 	if pr.MaybeUpdate(m.Index) {
-		switch {
-		//如果该follower处于StateProbe状态且现在跟上了进度，则将其转为StateReplica状态
-		case pr.State == tracker.StateProbe:
-			pr.BecomeReplicate()
-		case pr.State == tracker.StateReplicate:
-		}
-
+		//switch {
+		////如果该follower处于StateProbe状态且现在跟上了进度，则将其转为StateReplica状态
+		//case pr.State == tracker.StateProbe:
+		//	pr.BecomeReplicate()
+		//case pr.State == tracker.StateReplicate:
+		//}
 		if r.maybeCommit() {
 			r.bcastAppend()
 		}
@@ -434,6 +434,10 @@ func (r *raft) sendAppend(to uint64) {
 	ents, erre := r.raftLog.slice(pr.Next, r.raftLog.lastIndex()+1)
 	if errt != nil || erre != nil {
 		// todo send snapshot if we failed to get term or entries
+	}
+
+	if len(ents) == 0 {
+		return
 	}
 
 	m.Type = pb.MsgApp
@@ -475,7 +479,7 @@ func (r *raft) handleAppendEntries(m *pb.Message) {
 		return
 	}
 
-	log.Infof("%x [logterm: %d, index: %d] rejected MsgApp [logterm: %d, index: %d] from %x",
+	log.Infof("node(id:%x logterm: %d, index: %d) rejected MsgApp (logterm: %d, index: %d) from %x",
 		r.id, r.raftLog.zeroTermOnErrCompacted(r.raftLog.term(m.Index)), m.Index, m.LogTerm, m.Index, m.From)
 
 	hintIndex := min(m.Index, r.raftLog.lastIndex())
@@ -506,6 +510,7 @@ func (r *raft) hup() {
 	}
 	log.Infof("node(id:%x) is starting a new election at term %d", r.id, r.Term)
 	r.becomeCandidate()
+	//如果是单节点，直接成为leader
 	if _, _, res := r.poll(r.id, voteRespMsgType(pb.MsgVote), true); res == quorum.VoteWon {
 		r.becomeLeader()
 		return
@@ -536,8 +541,7 @@ func (r *raft) sendAllRequestVote() {
 		if id == r.id {
 			continue
 		}
-		log.Infof("%x [logterm: %d, index: %d] sent %s request to %x at term %d",
-			r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
+		log.Infof("node(id:%x logterm: %d, index: %d) sent %s request to %x at term %d", r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), pb.MsgVote, id, r.Term)
 		r.send(&pb.Message{Term: r.Term, To: id, Type: pb.MsgVote, Index: r.raftLog.lastIndex(), LogTerm: r.raftLog.lastTerm()})
 	}
 }
@@ -578,9 +582,9 @@ func (r *raft) send(m *pb.Message) {
 	r.msgs = append(r.msgs, m)
 }
 
-func (r *raft) advance() {
-	if newApplied := r.raftLog.storage.AppliedIndex(); newApplied > 0 && newApplied > r.raftLog.applied {
-		r.raftLog.appliedTo(newApplied)
+func (r *raft) advance(rd Ready) {
+	if n := len(rd.CommittedEntries); n > 0 {
+		r.raftLog.appliedTo(rd.CommittedEntries[n-1].Index)
 	}
 
 	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 && newStabled > r.raftLog.stabled {

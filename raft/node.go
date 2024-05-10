@@ -181,7 +181,7 @@ func (rn *raftNode) advance(rd Ready) {
 	if !IsEmptyHardState(rd.HardState) {
 		rn.prevHardSt = rd.HardState
 	}
-	rn.raft.advance()
+	rn.raft.advance(rd)
 }
 
 func (rn *raftNode) newReady() Ready {

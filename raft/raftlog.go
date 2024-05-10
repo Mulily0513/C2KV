@@ -108,16 +108,16 @@ func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 	// 如果lo小于offset，则从storage中获取这部分日志
 	var ents []*pb.Entry
 	if lo < l.offset {
-		persistEnts, err := l.storage.Entries(lo, min(hi, l.offset))
+		stableEnts, err := l.storage.Entries(lo, min(hi, l.offset))
 		if err == ErrCompacted {
 			return nil, err
 		}
 
-		if uint64(len(persistEnts)) < min(hi, l.offset)-lo {
-			return persistEnts, nil
+		if uint64(len(stableEnts)) < min(hi, l.offset)-lo {
+			return stableEnts, nil
 		}
 
-		ents = persistEnts
+		ents = stableEnts
 	}
 
 	// 如果hi大于offset，则从unstableEnts中获取这部分日志
@@ -146,6 +146,7 @@ func (l *raftLog) mustCheckOutOfBounds(lo, hi uint64) error {
 	}
 	fi := l.firstIndex()
 	li := l.lastIndex()
+	log.Infof("fist index:%x ,last index:%x", fi, li)
 	if lo < fi {
 		return ErrCompacted
 	}
@@ -167,6 +168,7 @@ func (l *raftLog) unstableEntries() []*pb.Entry {
 func (l *raftLog) nextCommittedEnts() (ents []*pb.Entry) {
 	if l.committed > l.applied {
 		ents, err := l.slice(l.applied+1, l.committed+1)
+		log.Infof("len ents:%d", len(ents))
 		if err != nil {
 			log.Panicf("unexpected error when getting unapplied entries (%v)", err)
 		}
@@ -176,14 +178,12 @@ func (l *raftLog) nextCommittedEnts() (ents []*pb.Entry) {
 }
 
 func (l *raftLog) hasNextCommittedEnts() bool {
-	log.Infof("hasNextCommittedEnts: %s %s", l.committed, l.applied)
-	log.Infof(" %+v", l.unstableEnts)
 	return l.committed > l.applied
 }
 
-// truncate append与maybeAppend是向raftLog写入日志的方法。
-// 二者的区别在于truncate append不会检查给定的日志切片是否与已有日志有冲突，leader会直接调用该方法
-// 因此leader向raftLog中追加日志时会调用truncate append；
+// truncate append与maybeAppend都是向raftLog写入日志的方法。
+// 二者的区别在于truncate append不会检查给定的日志切片是否与已有日志有冲突，该方法由leader节点调用
+// follower会调用maybeAppend方法，该方法会检查给定的日志切片是否与已有日志有冲突，该方法由follower节点调用
 func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...*pb.Entry) (lastnewi uint64, ok bool) {
 	//先判断是否与最后一个日志匹配
 	if l.matchTerm(index, logTerm) {
@@ -339,6 +339,7 @@ func (l *raftLog) stableTo(i uint64) {
 		l.stabled = i
 		l.shrinkEntriesArray()
 	}
+	log.Infof("raft log info %+v", *l)
 }
 
 func (l *raftLog) shrinkEntriesArray() {

@@ -59,7 +59,7 @@ func (cr *streamReader) dial() *msgDecoderAndReader {
 			log.Errorf("dial remote peer from %s to %s failed %v", cr.localIAddr, cr.peerIAddr, err)
 			continue
 		}
-		log.Infof("dial remote peer from %s to %s success", cr.localIAddr, cr.peerIAddr)
+		log.Infof("dial remote peer from %s to %s success, start streamReader", cr.localIAddr, cr.peerIAddr)
 		return &msgDecoderAndReader{Conn}
 	}
 }

@@ -17,8 +17,8 @@
     },
     "memConfig": {
       "memTableSize": 2048,
-      "memTablePipeSize": 10,
-      "memTableNums": 10,
+      "memTablePipeSize": 1,
+      "memTableNums": 1,
       "concurrency": 5
     },
     "valueLogConfig": {

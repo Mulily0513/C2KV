@@ -47,7 +47,8 @@ func commitNoopEntry(r *raft) {
 		panic("it should only be used when it is the leader")
 	}
 	r.bcastAppend()
-	// simulate the response of MsgApp
+
+	// simulate the response of MsgApp all accept
 	msgs := r.readMessages()
 	for _, m := range msgs {
 		if m.Type != pb.MsgApp || len(m.Entries) != 1 || m.Entries[0].Data != nil {
@@ -56,7 +57,7 @@ func commitNoopEntry(r *raft) {
 		r.Step(acceptAndReply(m))
 	}
 
-	// simulate advance
+	// simulate advance after ready
 	r.readMessages()
 	r.raftLog.appliedTo(r.raftLog.committed)
 	r.raftLog.stableTo(r.raftLog.lastIndex())
