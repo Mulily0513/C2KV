@@ -146,7 +146,6 @@ func (l *raftLog) mustCheckOutOfBounds(lo, hi uint64) error {
 	}
 	fi := l.firstIndex()
 	li := l.lastIndex()
-	log.Infof("fist index:%x ,last index:%x", fi, li)
 	if lo < fi {
 		return ErrCompacted
 	}
@@ -168,7 +167,6 @@ func (l *raftLog) unstableEntries() []*pb.Entry {
 func (l *raftLog) nextCommittedEnts() (ents []*pb.Entry) {
 	if l.committed > l.applied {
 		ents, err := l.slice(l.applied+1, l.committed+1)
-		log.Infof("len ents:%d", len(ents))
 		if err != nil {
 			log.Panicf("unexpected error when getting unapplied entries (%v)", err)
 		}
@@ -339,7 +337,6 @@ func (l *raftLog) stableTo(i uint64) {
 		l.stabled = i
 		l.shrinkEntriesArray()
 	}
-	log.Infof("raft log info %+v", *l)
 }
 
 func (l *raftLog) shrinkEntriesArray() {

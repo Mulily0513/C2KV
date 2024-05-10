@@ -334,10 +334,11 @@ func (r *raft) handleHeartbeatResponse(m *pb.Message) {
 	}
 	pr.RecentActive = true
 	pr.ProbeSent = false
-	//如果该节点的match index小于leader当前最后一条日志，则为其调用sendAppend方法来复制新日志。
-	if pr.Match < r.raftLog.lastIndex() {
-		r.sendAppend(m.From)
-	}
+	//todo
+	////如果该节点的match index小于leader当前最后一条日志，则为其调用sendAppend方法来复制新日志。
+	//if pr.Match < r.raftLog.lastIndex() {
+	//	r.sendAppend(m.From)
+	//}
 	return
 }
 
@@ -398,7 +399,7 @@ func (r *raft) handleAppendResponse(m *pb.Message) {
 		//case pr.State == tracker.StateReplicate:
 		//}
 		if r.maybeCommit() {
-			r.bcastAppend()
+			//r.bcastAppend()
 		}
 	}
 }
