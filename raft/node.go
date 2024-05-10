@@ -164,9 +164,10 @@ func (rn *raftNode) Stop() {
 
 func (rn *raftNode) HasReady() bool {
 	r := rn.raft
-	if !r.softState().equal(rn.prevSoftSt) {
-		return true
-	}
+	//todo
+	//if !r.softState().equal(rn.prevSoftSt) {
+	//	return true
+	//}
 	if hardSt := r.hardState(); !IsEmptyHardState(hardSt) && !isHardStateEqual(hardSt, rn.prevHardSt) {
 		return true
 	}
@@ -189,13 +190,13 @@ func (rn *raftNode) newReady() Ready {
 		CommittedEntries: rn.raft.raftLog.nextCommittedEnts(),
 		Messages:         rn.raft.msgs,
 	}
-	if softSt := rn.raft.softState(); !softSt.equal(rn.prevSoftSt) {
-		rd.SoftState = softSt
-	}
+	//if softSt := rn.raft.softState(); !softSt.equal(rn.prevSoftSt) {
+	//	rd.SoftState = softSt
+	//}
+	//rn.prevSoftSt = rd.SoftState
 	if hardSt := rn.raft.hardState(); !isHardStateEqual(hardSt, rn.prevHardSt) {
 		rd.HardState = hardSt
 	}
-	rn.prevSoftSt = rd.SoftState
 	rn.raft.msgs = nil
 	return rd
 }
@@ -204,7 +205,7 @@ type Ready struct {
 	// The current volatile state of a Node.
 	// SoftState will be nil if there is no update.
 	// It is not required to consume or store SoftState.
-	SoftState
+	//SoftState
 
 	HardState pb.HardState
 

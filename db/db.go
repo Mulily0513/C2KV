@@ -364,7 +364,7 @@ func (db *C2KV) firstIndex() uint64 {
 	if len(db.entries) == 0 {
 		return 0
 	}
-	return db.entries[0].Index + 1
+	return db.entries[0].Index
 }
 
 func (db *C2KV) StableIndex() uint64 {

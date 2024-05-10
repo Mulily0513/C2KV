@@ -79,6 +79,7 @@ func (an *AppNode) servePeerRaft() {
 }
 
 func (an *AppNode) serveRaftNode() {
+	//时钟1ms震动一次
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 

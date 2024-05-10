@@ -105,6 +105,7 @@ func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 		return nil, err
 	}
 
+	// 如果lo小于offset，则从storage中获取这部分日志
 	var ents []*pb.Entry
 	if lo < l.offset {
 		persistEnts, err := l.storage.Entries(lo, min(hi, l.offset))
@@ -119,8 +120,10 @@ func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 		ents = persistEnts
 	}
 
+	// 如果hi大于offset，则从unstableEnts中获取这部分日志
 	if hi > l.offset {
 		unstableEnts := l.unstableEnts[max(lo, l.offset)-l.offset : hi-l.offset]
+		// 如果ents不为空，则将unstableEnts与ents合并
 		if len(ents) > 0 {
 			combined := make([]*pb.Entry, len(ents)+len(unstableEnts))
 			n := copy(combined, ents)
@@ -173,6 +176,8 @@ func (l *raftLog) nextCommittedEnts() (ents []*pb.Entry) {
 }
 
 func (l *raftLog) hasNextCommittedEnts() bool {
+	log.Infof("hasNextCommittedEnts: %s %s", l.committed, l.applied)
+	log.Infof(" %+v", l.unstableEnts)
 	return l.committed > l.applied
 }
 
