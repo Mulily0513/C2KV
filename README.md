@@ -19,6 +19,8 @@
 ├─raft       //raft相关
 ├─transport  //传输层，负责集群内部网络传输相关
 └─utils
+└─dokcerfile-dev    //线上debug环境
+└─dokcercompose-dev //线上debug环境
 ~~~
 # 项目文档
 https://www.yuque.com/u32260789/dsbrhh/hw6a6yowgpgz275v?singleDoc# 《C2KV》
