@@ -2,7 +2,7 @@
 基于raft和lsm-tree存储引擎的分布式kv存储
 # 工程目录结构
 ~~~
-├─app      //应用层的功能主要是对外提供kv存储接口（接口类型有grpc和http）以及与算法层和存储层进行交互
+├─app      //应用层的功能主要是对外提供kv存储接口以及与算法层和存储层进行交互
 ├─bin      //配置文件和一些脚本文件
 ├─client   //客户端工具
 ├─code     //全局自定义的错误码
@@ -19,6 +19,8 @@
 ├─raft       //raft相关
 ├─transport  //传输层，负责集群内部网络传输相关
 └─utils
+└─dokcerfile-dev    //线上debug环境
+└─dokcercompose-dev //线上debug环境
 ~~~
 # 项目文档
 https://www.yuque.com/u32260789/dsbrhh/hw6a6yowgpgz275v?singleDoc# 《C2KV》
