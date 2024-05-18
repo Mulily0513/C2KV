@@ -21,7 +21,7 @@ func NewKVService(proposeC chan<- []byte, raftConfig *config.RaftConfig, kvStora
 		storage:    kvStorage,
 		proposeC:   proposeC,
 		monitorKV:  monitorKV,
-		ReqTimeout: time.Duration(raftConfig.RequestTimeOut) * time.Second,
+		ReqTimeout: time.Duration(raftConfig.RequestTimeOut) * time.Millisecond,
 	}
 	ServeHTTPKVAPI(s, localEAddr, kvServiceStopC)
 	return s
@@ -54,8 +54,11 @@ func (s *KvService) Propose(key, val []byte, delete bool) (bool, error) {
 }
 
 func (s *KvService) Lookup(key []byte) (*marshal.BytesKV, error) {
-	//todo
-	return nil, nil
+	kv, err := s.storage.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	return &marshal.BytesKV{Key: kv.Key, Value: kv.Data.Value}, nil
 }
 
 func (s *KvService) Scan(lowKey, highKey []byte) ([]*marshal.BytesKV, error) {

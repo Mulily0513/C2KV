@@ -17,19 +17,17 @@ type HttpKVAPI struct {
 	kvsService *KvService
 }
 
-func ServeHTTPKVAPI(kvService *KvService, Addr string, doneC <-chan struct{}) {
+func ServeHTTPKVAPI(kvService *KvService, localEAddr string, doneC <-chan struct{}) {
 	srv := http.Server{
-		Addr: Addr,
+		Addr: localEAddr,
 		Handler: &HttpKVAPI{
 			kvsService: kvService,
 		},
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			log.Fatal(err.Error())
-		}
-	}()
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatal(err.Error())
+	}
 
 	<-doneC
 	if err := srv.Shutdown(nil); err != nil {
@@ -74,7 +72,6 @@ func (h *HttpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
 		}
 
-		//更改节点配置相关
 	case r.Method == POST:
 		//todo
 	default:

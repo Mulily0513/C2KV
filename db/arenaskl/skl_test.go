@@ -20,8 +20,6 @@ package arenaskl
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/ColdToo/Cold2DB/code"
-	"github.com/ColdToo/Cold2DB/db/marshal"
 	"math/rand"
 	"strconv"
 	"sync"

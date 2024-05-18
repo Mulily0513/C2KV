@@ -29,7 +29,7 @@ services:
       - ./config:/app/config
       - ./db:/app/db
       - ./log:/app/log
-      - ./pb:/app/pb
+      - ./raftpb:/app/raftpb
       - ./raft:/app/raft
       - ./transport:/app/transport
       - ./utils:/app/utils
@@ -54,7 +54,7 @@ services:
       - ./config:/app/config
       - ./db:/app/db
       - ./log:/app/log
-      - ./pb:/app/pb
+      - ./raftpb:/app/raftpb
       - ./raft:/app/raft
       - ./transport:/app/transport
       - ./utils:/app/utils
@@ -79,7 +79,7 @@ services:
       - ./config:/app/config
       - ./db:/app/db
       - ./log:/app/log
-      - ./pb:/app/pb
+      - ./raftpb:/app/raftpb
       - ./raft:/app/raft
       - ./transport:/app/transport
       - ./utils:/app/utils

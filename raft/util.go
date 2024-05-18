@@ -162,10 +162,10 @@ func DescribeEntry(e pb.Entry, f EntryFormatter) string {
 		f = func(data []byte) string { return fmt.Sprintf("%q", data) }
 	}
 
-	//formatConfChange := func(cc pb.ConfChangeI) string {
+	//formatConfChange := func(cc raftpb.ConfChangeI) string {
 	//	// TODO(tbg): give the EntryFormatter a type argument so that it gets
 	//	// a chance to expose the Context.
-	//	return pb.ConfChangesToString(cc.AsV2().Changes)
+	//	return raftpb.ConfChangesToString(cc.AsV2().Changes)
 	//}
 
 	var formatted string

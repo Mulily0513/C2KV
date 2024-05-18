@@ -209,7 +209,7 @@ type Ready struct {
 
 	HardState pb.HardState
 
-	//ConfState pb.ConfState
+	//ConfState raftpb.ConfState
 
 	//  specifies entries to be saved to stable storage BEFORE
 	// Messages are sent.

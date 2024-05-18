@@ -1,0 +1,48 @@
+2024/05/11 - 00:02:44.047	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:02:44.058	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:02:44.058	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:02:44.058	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:02:44.059	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:02:44.059	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:03:09.508	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:03:09.518	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:03:09.519	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:03:09.519	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:03:09.519	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:03:09.519	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:95
+2024/05/11 - 00:03:39.946	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:4
+2024/05/11 - 00:03:39.956	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:4
+2024/05/11 - 00:03:39.956	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:4
+2024/05/11 - 00:03:39.956	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:5
+2024/05/11 - 00:03:39.956	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:227	found conflict at index 3 [existing term: 3, conflicting term: 4]
+2024/05/11 - 00:03:39.956	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:253	truncate the unstable entries before index 3
+2024/05/11 - 00:03:39.956	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:3
+2024/05/11 - 00:03:39.957	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:227	found conflict at index 2 [existing term: 2, conflicting term: 4]
+2024/05/11 - 00:03:39.957	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:253	truncate the unstable entries before index 2
+2024/05/11 - 00:03:39.957	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:2
+2024/05/11 - 00:03:39.957	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:227	found conflict at index 2 [existing term: 2, conflicting term: 4]
+2024/05/11 - 00:03:39.957	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:253	truncate the unstable entries before index 2
+2024/05/11 - 00:03:39.957	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:149	fist index:1 ,last index:3
+2024/05/11 - 01:44:55.925	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:189	node 1 became follower at term 0 leader is 0
+2024/05/11 - 01:44:55.940	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:130	new raft node(id:1) start,  peers(1,2,3), term: 0, commit: 0, applied: 0, lastindex: 0, lastterm: 0
+2024/05/11 - 01:44:55.940	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:198	node(id:1) became candidate at term 1
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:422	&{%!V(uint64=+1) %!V(uint64=+2) %!V(tracker.StateType=+1) %!V(bool=false) %!V(bool=false)}
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:180	peer:1 became leader at term 1
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:456	sed append msg {Type:MsgApp To:2 From:1 Term:1 LogTerm:0 Index:0 Entries:[{Term:1 Index:1 Type:EntryNormal Data:[]}] Commit:0 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}:
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:456	sed append msg {Type:MsgApp To:3 From:1 Term:1 LogTerm:0 Index:0 Entries:[{Term:1 Index:1 Type:EntryNormal Data:[]}] Commit:0 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}:
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:393	handle append rsp {Type:MsgAppResp To:1 From:2 Term:1 LogTerm:0 Index:1 Entries:[] Commit:0 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:395	{1 2 537461746550726f6265 %!x(bool=true) %!x(bool=false)} progress %!v(MISSING)
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:403	leader commit index is update
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:456	sed append msg {Type:MsgApp To:3 From:1 Term:1 LogTerm:0 Index:0 Entries:[{Term:1 Index:1 Type:EntryNormal Data:[]}] Commit:1 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}:
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:393	handle append rsp {Type:MsgAppResp To:1 From:3 Term:1 LogTerm:0 Index:1 Entries:[] Commit:0 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}
+2024/05/11 - 01:44:55.941	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:395	{1 2 537461746550726f6265 %!x(bool=true) %!x(bool=false)} progress %!v(MISSING)
+2024/05/11 - 01:44:55.942	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raftlog.go:340	raft log info {applied:1 committed:1 stabled:1 offset:2 unstableEnts:[] storage:0xc038b0a030}
+2024/05/11 - 01:44:55.942	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:422	&{%!V(uint64=+2) %!V(uint64=+3) %!V(tracker.StateType=+1) %!V(bool=false) %!V(bool=false)}
+2024/05/11 - 01:44:55.942	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:456	sed append msg {Type:MsgApp To:2 From:1 Term:1 LogTerm:0 Index:1 Entries:[{Term:1 Index:2 Type:EntryNormal Data:[115 111 109 101 32 100 97 116 97]}] Commit:1 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}:
+2024/05/11 - 01:44:55.942	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:456	sed append msg {Type:MsgApp To:3 From:1 Term:1 LogTerm:0 Index:1 Entries:[{Term:1 Index:2 Type:EntryNormal Data:[115 111 109 101 32 100 97 116 97]}] Commit:1 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}:
+2024/05/11 - 01:44:55.942	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:393	handle append rsp {Type:MsgAppResp To:1 From:2 Term:1 LogTerm:0 Index:2 Entries:[] Commit:0 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}
+2024/05/11 - 01:44:55.944	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:395	{2 3 537461746550726f6265 %!x(bool=true) %!x(bool=false)} progress %!v(MISSING)
+2024/05/11 - 01:44:55.945	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:403	leader commit index is update
+2024/05/11 - 01:44:55.945	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:456	sed append msg {Type:MsgApp To:3 From:1 Term:1 LogTerm:0 Index:1 Entries:[{Term:1 Index:2 Type:EntryNormal Data:[115 111 109 101 32 100 97 116 97]}] Commit:2 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}:
+2024/05/11 - 01:44:55.945	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:393	handle append rsp {Type:MsgAppResp To:1 From:3 Term:1 LogTerm:0 Index:2 Entries:[] Commit:0 Snapshot:{Data:[] Metadata:{ConfState:{Voters:[] Learners:[] VotersOutgoing:[] LearnersNext:[] AutoLeave:false} Index:0 Term:0}} Reject:false RejectHint:0 Context:[]}
+2024/05/11 - 01:44:55.945	[34minfo[0m	D:/CODE/Golang/GolangProject/C2KV/raft/raft.go:395	{2 3 537461746550726f6265 %!x(bool=true) %!x(bool=false)} progress %!v(MISSING)
