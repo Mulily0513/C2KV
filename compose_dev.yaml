@@ -23,6 +23,9 @@ services:
       mynetwork:
         ipv4_address: 172.18.0.11
     volumes:
+      - ./api:/app/api
+      - ./client:/app/client
+      - ./tool:/app/tool
       - ./app:/app/app
       - ./client:/app/client
       - ./code:/app/code
@@ -48,6 +51,9 @@ services:
       mynetwork:
         ipv4_address: 172.18.0.12
     volumes:
+      - ./api:/app/api
+      - ./client:/app/client
+      - ./tool:/app/tool
       - ./app:/app/app
       - ./client:/app/client
       - ./code:/app/code
@@ -73,6 +79,9 @@ services:
       mynetwork:
         ipv4_address: 172.18.0.13
     volumes:
+      - ./api:/app/api
+      - ./client:/app/client
+      - ./tool:/app/tool
       - ./app:/app/app
       - ./client:/app/client
       - ./code:/app/code
