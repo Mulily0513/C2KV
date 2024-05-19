@@ -6,7 +6,6 @@ import (
 	"github.com/Mulily0513/C2KV/config"
 	"github.com/Mulily0513/C2KV/db"
 	"github.com/Mulily0513/C2KV/log"
-	"github.com/Mulily0513/C2KV/pb"
 )
 
 func main() {
@@ -15,15 +14,5 @@ func main() {
 	flag.Parse()
 	config.InitConfig(cfgPath)
 	log.InitLog(config.GetZapConf())
-	raftConfig := config.GetRaftConf()
-	kvStorage := db.OpenKVStorage(config.GetDBConf())
-
-	proposeC := make(chan []byte, raftConfig.RequestTimeOut)
-	confChangeC := make(chan pb.ConfChange)
-	kvServiceStopC := make(chan struct{})
-	monitorKV := make(map[int64]chan struct{})
-
-	localIAddr, localEAddr, localId, peers := config.GetLocalInfo()
-	app.StartAppNode(localId, localIAddr, peers, proposeC, confChangeC, kvServiceStopC, kvStorage, raftConfig, monitorKV)
-	app.NewKVService(proposeC, raftConfig, kvStorage, monitorKV, localEAddr, kvServiceStopC)
+	app.StartAppNode(config.GetLocalInfo(), db.OpenKVStorage(config.GetDBConf()), config.GetRaftConf())
 }

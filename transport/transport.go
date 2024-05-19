@@ -10,7 +10,6 @@ import (
 
 type RaftOperator interface {
 	Process(m *pb.Message)
-	ReportUnreachable(id uint64)
 }
 
 //go:generate mockgen -source=./transport.go -destination=./mocks/transport.go -package=mock

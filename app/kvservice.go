@@ -2,32 +2,55 @@ package app
 
 import (
 	"errors"
-	"github.com/Mulily0513/C2KV/config"
+	"github.com/Mulily0513/C2KV/api/c2kvserverpb"
 	"github.com/Mulily0513/C2KV/db"
 	"github.com/Mulily0513/C2KV/db/marshal"
+	"github.com/Mulily0513/C2KV/log"
+	"github.com/Mulily0513/C2KV/raft"
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"net"
 	"time"
 )
 
 type KvService struct {
-	storage    db.Storage
+	Storage    db.Storage
 	proposeC   chan<- []byte
 	monitorKV  map[int64]chan struct{}
 	ReqTimeout time.Duration
+	RaftNode   raft.Node
 }
 
-func NewKVService(proposeC chan<- []byte, raftConfig *config.RaftConfig, kvStorage db.Storage, monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}) *KvService {
+func StartKVAPIService(proposeC chan<- []byte, requestTimeOut int, kvStorage db.Storage,
+	monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}, raftNode raft.Node) {
 	s := &KvService{
-		storage:    kvStorage,
+		Storage:    kvStorage,
 		proposeC:   proposeC,
 		monitorKV:  monitorKV,
-		ReqTimeout: time.Duration(raftConfig.RequestTimeOut) * time.Millisecond,
+		ReqTimeout: time.Duration(requestTimeOut) * time.Millisecond,
+		RaftNode:   raftNode,
 	}
-	ServeHTTPKVAPI(s, localEAddr, kvServiceStopC)
-	return s
+	ServeGRPCKVAPI(s, localEAddr)
+	<-kvServiceStopC
+	return
 }
 
-func (s *KvService) Propose(key, val []byte, delete bool) (bool, error) {
+func ServeGRPCKVAPI(kvService *KvService, localEAddr string) {
+	listen, err := net.Listen("tcp", localEAddr)
+	if err != nil {
+		log.Panicf("failed listen grpc tcp, addr:%s", localEAddr)
+	}
+
+	server := grpc.NewServer()
+	c2kvserverpb.RegisterKVServer(server, &KVService{kvService: kvService})
+	c2kvserverpb.RegisterMaintenanceServer(server, &MaintainService{kvService: kvService})
+
+	if err := server.Serve(listen); err != nil {
+		log.Panicf("failed to serve grpc, addr:%s", localEAddr)
+	}
+}
+
+func (s *KvService) Propose(key, val []byte, delete bool) error {
 	timeOutC := time.NewTimer(s.ReqTimeout)
 	uid := int64(uuid.New().ID())
 	kv := new(marshal.KV)
@@ -47,14 +70,14 @@ func (s *KvService) Propose(key, val []byte, delete bool) (bool, error) {
 
 	select {
 	case <-sig:
-		return true, nil
+		return nil
 	case <-timeOutC.C:
-		return false, errors.New("request time out")
+		return errors.New("request time out")
 	}
 }
 
 func (s *KvService) Lookup(key []byte) (*marshal.BytesKV, error) {
-	kv, err := s.storage.Get(key)
+	kv, err := s.Storage.Get(key)
 	if err != nil {
 		return nil, err
 	}

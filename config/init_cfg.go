@@ -43,14 +43,21 @@ func GetDBConf() *DBConfig {
 	return conf.DbConfig
 }
 
-func GetLocalInfo() (localIAddr string, localEAddr string, localId uint64, peers []Peer) {
+type LocalInfo struct {
+	LocalId    uint64
+	LocalIAddr string
+	LocalEAddr string
+	Peers      []Peer
+}
+
+func GetLocalInfo() (localInfo LocalInfo) {
 	raftConf := conf.RaftConfig
 	for _, peer := range raftConf.Peers {
 		if strings.Split(raftConf.EAddr, ":")[0] == strings.Split(peer.IAddr, ":")[0] {
-			localId = peer.Id
-			localIAddr = peer.IAddr
+			localInfo.LocalId = peer.Id
+			localInfo.LocalIAddr = peer.IAddr
 		}
-		peers = append(peers, peer)
+		localInfo.Peers = append(localInfo.Peers, peer)
 	}
 	return
 }

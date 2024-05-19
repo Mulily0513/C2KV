@@ -19,7 +19,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/Mulily0513/C2KV/client"
-	"github.com/Mulily0513/C2KV/pkg/report"
+	"github.com/Mulily0513/C2KV/tool/report"
 	"gopkg.in/cheggaaa/pb.v1"
 	"math"
 	"math/rand"
@@ -79,7 +79,11 @@ func putFunc(cmd *cobra.Command, args []string) {
 		putRate = math.MaxInt32
 	}
 	limit := rate.NewLimiter(rate.Limit(putRate), 1)
-	clients := mustCreateClients(totalClients, totalConns)
+	clients, err := mustCreatLeaderClients(totalClients, endpoints)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create client error: %v", err)
+		os.Exit(1)
+	}
 	k, v := make([]byte, keySize), string(mustRandBytes(valSize))
 
 	bar = pb.New(putTotal)

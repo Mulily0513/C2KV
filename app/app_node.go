@@ -23,34 +23,39 @@ type AppNode struct {
 	transport transport.Transporter
 	kvStorage db.Storage
 
-	proposeC    chan []byte        // 提议 (k,v) channel
-	confChangeC chan pb.ConfChange // 提议更改配置文件 channel
-	kvServStopC chan struct{}      // 关闭http服务器的信号 channel
+	proposeC       chan []byte        // 提议 (k,v) channel
+	confChangeC    chan pb.ConfChange // 提议更改配置文件 channel
+	kvServiceStopC chan struct{}      // 关闭http服务器的信号 channel
 }
 
-func StartAppNode(localId uint64, localIAddr string, peers []config.Peer, proposeC chan []byte, confChangeC chan pb.ConfChange,
-	kvHTTPStopC chan struct{}, kvStorage db.Storage, raftConfig *config.RaftConfig, monitorKV map[int64]chan struct{}) {
+func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *config.RaftConfig) {
+	proposeC := make(chan []byte, raftConfig.RequestTimeOut)
+	confChangeC := make(chan pb.ConfChange)
+	kvServiceStopC := make(chan struct{})
+	monitorKV := make(map[int64]chan struct{})
+
 	an := &AppNode{
-		localId:     localId,
-		localIAddr:  localIAddr,
-		peers:       peers,
-		proposeC:    proposeC,
-		confChangeC: confChangeC,
-		kvServStopC: kvHTTPStopC,
-		kvStorage:   kvStorage,
-		monitorKV:   monitorKV,
+		localId:        localInfo.LocalId,
+		localIAddr:     localInfo.LocalIAddr,
+		peers:          localInfo.Peers,
+		proposeC:       proposeC,
+		confChangeC:    confChangeC,
+		kvServiceStopC: kvServiceStopC,
+		kvStorage:      kvStorage,
+		monitorKV:      monitorKV,
 	}
 
 	// 完成当前节点与集群中其他节点之间的网络连接
 	an.servePeerRaft()
 
 	// 启动Raft算法层
-	an.raftNode = raft.StartRaftNode(localId, raftConfig, kvStorage)
+	an.raftNode = raft.StartRaftNode(localInfo.LocalId, raftConfig, kvStorage)
 	// 启动一个goroutine,处理appNode与raftNode的交互
 	go an.serveRaftNode()
 	// 启动一个goroutine,处理客户端请求的节点变更以及日志提议
 	go an.servePropCAndConfC()
 
+	StartKVAPIService(proposeC, raftConfig.RequestTimeOut, kvStorage, monitorKV, localInfo.LocalEAddr, kvServiceStopC, an.raftNode)
 	return
 }
 
@@ -167,13 +172,11 @@ func (an *AppNode) Process(m *pb.Message) {
 	an.raftNode.Step(m)
 }
 
-func (an *AppNode) ReportUnreachable(id uint64) { an.raftNode.ReportUnreachable(id) }
-
-// 关闭Raft
+// 关闭c2kv
 func (an *AppNode) stop() {
 	an.transport.Stop()
 	an.raftNode.Stop()
 	close(an.proposeC)
 	close(an.confChangeC)
-	close(an.kvServStopC)
+	close(an.kvServiceStopC)
 }

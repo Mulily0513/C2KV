@@ -21,32 +21,32 @@ import (
 )
 
 type (
-	Member             pb.Member
-	MemberListResponse pb.MemberListResponse
+	StatusRequest  pb.StatusRequest
+	StatusResponse pb.StatusResponse
 )
 
-type Cluster interface {
+type Maintain interface {
 	// MemberList lists the current cluster membership.
-	MemberList(ctx context.Context) (*MemberListResponse, error)
+	Status(ctx context.Context) (*StatusResponse, error)
 }
 
-type cluster struct {
-	remote   pb.ClusterClient
+type maintain struct {
+	remote   pb.MaintenanceClient
 	callOpts []grpc.CallOption
 }
 
-func NewCluster(c *Client) Cluster {
-	api := &cluster{remote: pb.NewClusterClient(c.conn)}
+func NewMaintain(c *Client) Maintain {
+	api := &maintain{remote: pb.NewMaintenanceClient(c.conn)}
 	if c != nil {
 		api.callOpts = c.callOpts
 	}
 	return api
 }
 
-func (c *cluster) MemberList(ctx context.Context) (*MemberListResponse, error) {
-	resp, err := c.remote.MemberList(ctx, &pb.MemberListRequest{}, c.callOpts...)
+func (m maintain) Status(ctx context.Context) (*StatusResponse, error) {
+	resp, err := m.remote.Status(ctx, &pb.StatusRequest{}, m.callOpts...)
 	if err == nil {
-		return (*MemberListResponse)(resp), nil
+		return (*StatusResponse)(resp), nil
 	}
-	return nil, toErr(ctx, err)
+	return nil, err
 }

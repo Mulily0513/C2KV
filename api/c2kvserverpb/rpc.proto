@@ -4,21 +4,15 @@ option go_package = "./;c2kvserverpb";
 
 package c2kvserverpb;
 
-service Cluster {
-  // MemberList lists all the members in the cluster.
-  rpc MemberList(MemberListRequest) returns (MemberListResponse){}
+service Maintenance {
+  // Status gets the status of the member.
+  rpc Status(StatusRequest) returns (StatusResponse) {}
 }
 
-message MemberListRequest {
+message StatusRequest {
 }
 
-message MemberListResponse {
-  // members is a list of all members associated with the cluster.
-  repeated Member members = 2;
-}
-
-message Member {
-  // ID is the member ID for this member.
+message StatusResponse {
   uint64 ID = 1;
   // name is the human-readable name of the member. If the member is not started, the name will be an empty string.
   string name = 2;

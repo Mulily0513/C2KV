@@ -20,6 +20,9 @@ type Node interface {
 
 	ReportUnreachable(id uint64)
 
+	//Status
+	Status() Status
+
 	// Step advances the state machine using the given message. ctx.Err() will be returned, if any.
 	Step(msg *pb.Message)
 
@@ -42,6 +45,10 @@ type Node interface {
 
 	// Stop performs any necessary termination of the Node.
 	Stop()
+}
+
+type Status struct {
+	IsLeader bool
 }
 
 // SoftState provides state that is useful for logging and debugging.
@@ -135,6 +142,14 @@ func (rn *raftNode) Tick() {
 	}
 }
 
+func (rn *raftNode) Status() (status Status) {
+	state := rn.raft.softState()
+	if state.RaftState == StateLeader {
+		status.IsLeader = true
+	}
+	return
+}
+
 func (rn *raftNode) Step(m *pb.Message) {
 	if m.Type == pb.MsgBeat || m.Type == pb.MsgHup {
 		return
@@ -164,10 +179,9 @@ func (rn *raftNode) Stop() {
 
 func (rn *raftNode) HasReady() bool {
 	r := rn.raft
-	//todo
-	//if !r.softState().equal(rn.prevSoftSt) {
-	//	return true
-	//}
+	if !r.softState().equal(rn.prevSoftSt) {
+		return true
+	}
 	if hardSt := r.hardState(); !IsEmptyHardState(hardSt) && !isHardStateEqual(hardSt, rn.prevHardSt) {
 		return true
 	}
@@ -190,10 +204,10 @@ func (rn *raftNode) newReady() Ready {
 		CommittedEntries: rn.raft.raftLog.nextCommittedEnts(),
 		Messages:         rn.raft.msgs,
 	}
-	//if softSt := rn.raft.softState(); !softSt.equal(rn.prevSoftSt) {
-	//	rd.SoftState = softSt
-	//}
-	//rn.prevSoftSt = rd.SoftState
+	if softSt := rn.raft.softState(); !softSt.equal(rn.prevSoftSt) {
+		rd.SoftState = softSt
+	}
+	rn.prevSoftSt = rd.SoftState
 	if hardSt := rn.raft.hardState(); !isHardStateEqual(hardSt, rn.prevHardSt) {
 		rd.HardState = hardSt
 	}
@@ -205,7 +219,7 @@ type Ready struct {
 	// The current volatile state of a Node.
 	// SoftState will be nil if there is no update.
 	// It is not required to consume or store SoftState.
-	//SoftState
+	SoftState
 
 	HardState pb.HardState
 

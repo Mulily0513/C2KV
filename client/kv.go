@@ -56,22 +56,6 @@ type KV interface {
 	Do(ctx context.Context, op Op) (OpResponse, error)
 }
 
-type OpResponse struct {
-	put *PutResponse
-	get *GetResponse
-	del *DeleteResponse
-}
-
-func (op OpResponse) Put() *PutResponse { return op.put }
-func (op OpResponse) Get() *GetResponse { return op.get }
-
-func (resp *PutResponse) OpResponse() OpResponse {
-	return OpResponse{put: resp}
-}
-func (resp *GetResponse) OpResponse() OpResponse {
-	return OpResponse{get: resp}
-}
-
 type kv struct {
 	remote   pb.KVClient
 	callOpts []grpc.CallOption
@@ -87,17 +71,17 @@ func NewKV(c *Client) KV {
 
 func (kv *kv) Put(ctx context.Context, key, val string, opts ...OpOption) (*PutResponse, error) {
 	r, err := kv.Do(ctx, OpPut(key, val, opts...))
-	return r.put, toErr(ctx, err)
+	return r.put, err
 }
 
 func (kv *kv) Get(ctx context.Context, key string, opts ...OpOption) (*GetResponse, error) {
 	r, err := kv.Do(ctx, OpGet(key, opts...))
-	return r.get, toErr(ctx, err)
+	return r.get, err
 }
 
 func (kv *kv) Delete(ctx context.Context, key string, opts ...OpOption) (*DeleteResponse, error) {
 	r, err := kv.Do(ctx, OpDelete(key, opts...))
-	return r.del, toErr(ctx, err)
+	return r.del, err
 }
 
 func (kv *kv) Do(ctx context.Context, op Op) (OpResponse, error) {
@@ -126,5 +110,21 @@ func (kv *kv) Do(ctx context.Context, op Op) (OpResponse, error) {
 	default:
 		panic("Unknown op")
 	}
-	return OpResponse{}, toErr(ctx, err)
+	return OpResponse{}, err
+}
+
+type OpResponse struct {
+	put *PutResponse
+	get *GetResponse
+	del *DeleteResponse
+}
+
+func (op OpResponse) Put() *PutResponse { return op.put }
+func (op OpResponse) Get() *GetResponse { return op.get }
+
+func (resp *PutResponse) OpResponse() OpResponse {
+	return OpResponse{put: resp}
+}
+func (resp *GetResponse) OpResponse() OpResponse {
+	return OpResponse{get: resp}
 }

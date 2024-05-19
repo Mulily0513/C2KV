@@ -2,8 +2,6 @@ package code
 
 import "errors"
 
-var ErrIllegalMemTableNums = errors.New("requested index is unavailable due to compaction")
-
 var (
 	// ErrRecordExists record with this key already exists.
 	ErrRecordExists = errors.New("record with this key already exists")
@@ -18,10 +16,16 @@ var (
 	ErrRecordDeleted = errors.New("record was deleted by another caller")
 
 	ErrDBNotInit = errors.New("db is no init complete")
-)
 
-var ErrValueTooLarge = errors.New("the data size can't larger than segment size")
-var ErrPendingSizeTooLarge = errors.New("the upper bound of pendingWrites can't larger than segment size")
-var ErrClosed = errors.New("the segment file is closed")
-var ErrInvalidCRC = errors.New("invalid crc, the data may be corrupted")
-var ErrCanNotFondSSTFile = errors.New("can not found sst file")
+	ErrValueTooLarge = errors.New("the data size can't larger than segment size")
+
+	ErrPendingSizeTooLarge = errors.New("the upper bound of pendingWrites can't larger than segment size")
+
+	ErrClosed = errors.New("the segment file is closed")
+
+	ErrInvalidCRC = errors.New("invalid crc, the data may be corrupted")
+
+	ErrCanNotFondSSTFile = errors.New("can not found sst file")
+
+	ErrIllegalMemTableNums = errors.New("requested index is unavailable due to compaction")
+)

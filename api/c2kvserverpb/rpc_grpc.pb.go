@@ -18,88 +18,88 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// ClusterClient is the client API for Cluster service.
+// MaintenanceClient is the client API for Maintenance service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type ClusterClient interface {
-	// MemberList lists all the members in the cluster.
-	MemberList(ctx context.Context, in *MemberListRequest, opts ...grpc.CallOption) (*MemberListResponse, error)
+type MaintenanceClient interface {
+	// Status gets the status of the member.
+	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 }
 
-type clusterClient struct {
+type maintenanceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewClusterClient(cc grpc.ClientConnInterface) ClusterClient {
-	return &clusterClient{cc}
+func NewMaintenanceClient(cc grpc.ClientConnInterface) MaintenanceClient {
+	return &maintenanceClient{cc}
 }
 
-func (c *clusterClient) MemberList(ctx context.Context, in *MemberListRequest, opts ...grpc.CallOption) (*MemberListResponse, error) {
-	out := new(MemberListResponse)
-	err := c.cc.Invoke(ctx, "/c2kvserverpb.Cluster/MemberList", in, out, opts...)
+func (c *maintenanceClient) Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error) {
+	out := new(StatusResponse)
+	err := c.cc.Invoke(ctx, "/c2kvserverpb.Maintenance/Status", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ClusterServer is the server API for Cluster service.
-// All implementations must embed UnimplementedClusterServer
+// MaintenanceServer is the server API for Maintenance service.
+// All implementations must embed UnimplementedMaintenanceServer
 // for forward compatibility
-type ClusterServer interface {
-	// MemberList lists all the members in the cluster.
-	MemberList(context.Context, *MemberListRequest) (*MemberListResponse, error)
-	mustEmbedUnimplementedClusterServer()
+type MaintenanceServer interface {
+	// Status gets the status of the member.
+	Status(context.Context, *StatusRequest) (*StatusResponse, error)
+	mustEmbedUnimplementedMaintenanceServer()
 }
 
-// UnimplementedClusterServer must be embedded to have forward compatible implementations.
-type UnimplementedClusterServer struct {
+// UnimplementedMaintenanceServer must be embedded to have forward compatible implementations.
+type UnimplementedMaintenanceServer struct {
 }
 
-func (UnimplementedClusterServer) MemberList(context.Context, *MemberListRequest) (*MemberListResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method MemberList not implemented")
+func (UnimplementedMaintenanceServer) Status(context.Context, *StatusRequest) (*StatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Status not implemented")
 }
-func (UnimplementedClusterServer) mustEmbedUnimplementedClusterServer() {}
+func (UnimplementedMaintenanceServer) mustEmbedUnimplementedMaintenanceServer() {}
 
-// UnsafeClusterServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ClusterServer will
+// UnsafeMaintenanceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MaintenanceServer will
 // result in compilation errors.
-type UnsafeClusterServer interface {
-	mustEmbedUnimplementedClusterServer()
+type UnsafeMaintenanceServer interface {
+	mustEmbedUnimplementedMaintenanceServer()
 }
 
-func RegisterClusterServer(s grpc.ServiceRegistrar, srv ClusterServer) {
-	s.RegisterService(&Cluster_ServiceDesc, srv)
+func RegisterMaintenanceServer(s grpc.ServiceRegistrar, srv MaintenanceServer) {
+	s.RegisterService(&Maintenance_ServiceDesc, srv)
 }
 
-func _Cluster_MemberList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MemberListRequest)
+func _Maintenance_Status_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StatusRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterServer).MemberList(ctx, in)
+		return srv.(MaintenanceServer).Status(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/c2kvserverpb.Cluster/MemberList",
+		FullMethod: "/c2kvserverpb.Maintenance/Status",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterServer).MemberList(ctx, req.(*MemberListRequest))
+		return srv.(MaintenanceServer).Status(ctx, req.(*StatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// Cluster_ServiceDesc is the grpc.ServiceDesc for Cluster service.
+// Maintenance_ServiceDesc is the grpc.ServiceDesc for Maintenance service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Cluster_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "c2kvserverpb.Cluster",
-	HandlerType: (*ClusterServer)(nil),
+var Maintenance_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "c2kvserverpb.Maintenance",
+	HandlerType: (*MaintenanceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "MemberList",
-			Handler:    _Cluster_MemberList_Handler,
+			MethodName: "Status",
+			Handler:    _Maintenance_Status_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
