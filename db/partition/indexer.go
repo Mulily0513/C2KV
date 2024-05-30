@@ -35,16 +35,13 @@ func NewIndexer(partitionDir string, indexFileName string) (*BtreeIndexer, error
 	if err != nil {
 		return nil, err
 	}
-	if _, err := tx.CreateBucketIfNotExists(indexBucketName); err != nil {
+	if _, err = tx.CreateBucketIfNotExists(indexBucketName); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil {
+	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &BtreeIndexer{
-		index: indexer,
-		Fp:    fp,
-	}, nil
+	return &BtreeIndexer{index: indexer, Fp: fp}, nil
 }
 
 type BtreeIndexer struct {
@@ -54,43 +51,10 @@ type BtreeIndexer struct {
 
 type Op struct {
 	op int8
-	kv *marshal.BytesKV
+	kv marshal.BytesKV
 }
 
-func (b *BtreeIndexer) Get(key []byte) (meta *marshal.BytesKV, err error) {
-	err = b.index.View(func(tx *bbolt.Tx) error {
-		value := tx.Bucket(indexBucketName).Get(key)
-		if value != nil {
-			meta = new(marshal.BytesKV)
-			meta.Key = key
-			meta.Value = value
-			return nil
-		}
-		return code.ErrRecordNotExists
-	})
-	return
-}
-
-func (b *BtreeIndexer) Scan(low, high []byte) (meta []*marshal.BytesKV, err error) {
-	err = b.index.View(func(tx *bbolt.Tx) error {
-		cursor := tx.Bucket(indexBucketName).Cursor()
-		k, v := cursor.Seek(low)
-		if k != nil && bytes.Compare(k, low) >= 0 {
-			meta = append(meta, &marshal.BytesKV{Key: k, Value: v})
-		}
-		for bytes.Compare(k, high) <= 0 {
-			k, v = cursor.Next()
-			if k == nil {
-				break
-			}
-			meta = append(meta, &marshal.BytesKV{Key: k, Value: v})
-		}
-		return nil
-	})
-	return
-}
-
-func (b *BtreeIndexer) Execute(tx *bbolt.Tx, ops []*Op) (err error) {
+func (b *BtreeIndexer) ExecuteOps(tx *bbolt.Tx, ops []*Op) (err error) {
 	txBucket := tx.Bucket(indexBucketName)
 	for _, op := range ops {
 		switch op.op {
@@ -107,8 +71,40 @@ func (b *BtreeIndexer) Execute(tx *bbolt.Tx, ops []*Op) (err error) {
 	return
 }
 
-func (b *BtreeIndexer) StartTx() (tx *bbolt.Tx, err error) {
+func (b *BtreeIndexer) BeginTx() (tx *bbolt.Tx, err error) {
 	return b.index.Begin(true)
+}
+
+func (b *BtreeIndexer) Get(key []byte) (meta marshal.BytesKV, err error) {
+	err = b.index.View(func(tx *bbolt.Tx) error {
+		value := tx.Bucket(indexBucketName).Get(key)
+		if value != nil {
+			meta.Key = key
+			meta.Value = value
+			return nil
+		}
+		return code.ErrRecordNotExists
+	})
+	return
+}
+
+func (b *BtreeIndexer) Scan(low, high []byte) (meta []marshal.BytesKV, err error) {
+	err = b.index.View(func(tx *bbolt.Tx) error {
+		cursor := tx.Bucket(indexBucketName).Cursor()
+		k, v := cursor.Seek(low)
+		if k != nil && bytes.Compare(k, low) >= 0 {
+			meta = append(meta, marshal.BytesKV{Key: k, Value: v})
+		}
+		for bytes.Compare(k, high) <= 0 {
+			k, v = cursor.Next()
+			if k == nil {
+				break
+			}
+			meta = append(meta, marshal.BytesKV{Key: k, Value: v})
+		}
+		return nil
+	})
+	return
 }
 
 func (b *BtreeIndexer) Close() error {

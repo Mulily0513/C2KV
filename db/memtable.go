@@ -126,9 +126,10 @@ type MemTableQueue struct {
 	capacity int
 }
 
+// todo 用链表实现
 func NewMemTableQueue(capacity int) *MemTableQueue {
 	return &MemTableQueue{
-		tables:   make([]*MemTable, 0),
+		tables:   make([]*MemTable, capacity),
 		size:     0,
 		capacity: capacity,
 	}

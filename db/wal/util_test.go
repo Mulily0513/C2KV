@@ -21,12 +21,12 @@ var Entries20 = CreateEntries(40, 250)
 
 var TestWalDirPath, _ = os.Getwd()
 
-var TestWALConfig64 = config.WalConfig{
+var TestWALCfg64Size = config.WalConfig{
 	WalDirPath:  TestWalDirPath,
 	SegmentSize: 64,
 }
 
-var TestWALConfig1 = config.WalConfig{
+var TestWALCfg1Size = config.WalConfig{
 	WalDirPath:  TestWalDirPath,
 	SegmentSize: 1,
 }
@@ -71,27 +71,9 @@ func generateData(length int) []byte {
 	return data
 }
 
-func ConvertSize(size int) string {
-	units := []string{"B", "KB", "MB", "GB"}
-	if size == 0 {
-		return "0" + units[0]
-	}
-	i := 0
-	for size >= 1024 {
-		size /= 1024
-		i++
-	}
-	return fmt.Sprintf("%.f", float64(size)) + units[i]
-}
-
-func TestCreateEntries(t *testing.T) {
-	_, bytesCount := MarshalWALEntries(CreateEntries(5000, 250))
-	fmt.Printf(CreatEntriesFmt, 1, 10, ConvertSize(bytesCount))
-}
-
-func MarshalWALEntries(entries1 []*pb.Entry) (data []byte, bytesCount int) {
+func MarshalWALEntries(entries []*pb.Entry) (data []byte, bytesCount int) {
 	data = make([]byte, 0)
-	for _, e := range entries1 {
+	for _, e := range entries {
 		wEntBytes, n := marshal.EncodeWALEntry(e)
 		data = append(data, wEntBytes...)
 		bytesCount += n
@@ -99,11 +81,9 @@ func MarshalWALEntries(entries1 []*pb.Entry) (data []byte, bytesCount int) {
 	return
 }
 
-func MockSegmentWrite(entries []*pb.Entry) *segment {
-	segment, _ := NewSegmentFile(TestWALConfig1.WalDirPath, TestWALConfig1.SegmentSize)
+func MockSegmentWrite(entries []*pb.Entry, segment *segment) {
 	data, bytesCount := MarshalWALEntries(entries)
 	segment.Write(data, bytesCount, entries[0].Index)
-	return segment
 }
 
 func readEntriesBySeg(segment *segment) (entries []*pb.Entry) {
@@ -121,4 +101,22 @@ func readEntriesBySeg(segment *segment) (entries []*pb.Entry) {
 		entries = append(entries, entry)
 	}
 	return
+}
+
+func TestCreateEntries(t *testing.T) {
+	_, bytesCount := MarshalWALEntries(CreateEntries(5000, 250))
+	fmt.Printf(CreatEntriesFmt, 1, 10, ConvertSize(bytesCount))
+}
+
+func ConvertSize(size int) string {
+	units := []string{"B", "KB", "MB", "GB"}
+	if size == 0 {
+		return "0" + units[0]
+	}
+	i := 0
+	for size >= 1024 {
+		size /= 1024
+		i++
+	}
+	return fmt.Sprintf("%.f", float64(size)) + units[i]
 }

@@ -89,12 +89,11 @@ func TestPartition_PersistKvs(t *testing.T) {
 	wg.Add(1)
 	p.PersistKvs(_67MBKVs, wg, errC)
 	wg.Wait()
-	os.RemoveAll(partitionDir1)
 }
 
 func TestPartition_Get(t *testing.T) {
 	persisitKVs := _27KBKVsNoDelOp
-	p := MockPartitionPersistKVs(partitionDir3, persisitKVs)
+	p := MockPartitionPersistKVs(partitionDir2, persisitKVs)
 
 	index := createRandomIndex(1, 100)
 	kv := _27KBKVsNoDelOp[index]
@@ -104,9 +103,9 @@ func TestPartition_Get(t *testing.T) {
 	}
 	assert.EqualValues(t, kv.Key, kvRecive.Key)
 	assert.EqualValues(t, kv.Data.Value, kvRecive.Data.Value)
-	os.RemoveAll(partitionDir2)
 }
 
+// todo fix
 func TestPartition_Scan(t *testing.T) {
 	persistKVs := _27KBKVsNoDelOp
 	p := MockPartitionPersistKVs(partitionDir3, persistKVs)
@@ -133,5 +132,4 @@ func TestPartition_Scan(t *testing.T) {
 		kvsVerify = append(kvsVerify, marshal.BytesKV{Key: kv.Key, Value: kv.Data.Value})
 	}
 	assert.EqualValues(t, kvs, kvsVerify)
-	os.RemoveAll(partitionDir3)
 }

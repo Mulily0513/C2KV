@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func TestSegmentFile_NewSegmentFile(t *testing.T) {
-	segment := NewSegmentFile(TestWALConfig1.WalDirPath, TestWALConfig1.SegmentSize)
+func TestSegmentFile_newSegmentFile(t *testing.T) {
+	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
 	assert.EqualValues(t, segment.Index, DefaultMinLogIndex)
 	assert.EqualValues(t, segment.blocksOffset, 0)
 	segment.Close()
@@ -16,7 +16,7 @@ func TestSegmentFile_NewSegmentFile(t *testing.T) {
 }
 
 func TestSegmentFile_Write(t *testing.T) {
-	segment := NewSegmentFile(TestWALConfig1.WalDirPath, TestWALConfig1.SegmentSize)
+	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
 
 	//todo 测试不同分支的write
 	// 1、写入<block4
@@ -34,7 +34,8 @@ func TestSegmentFile_Write(t *testing.T) {
 
 // todo 在不同的写入场景下测试read
 func TestSegmentReader_Block4(t *testing.T) {
-	segment := MockSegmentWrite(Entries20)
+	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
+	MockSegmentWrite(Entries20, segment)
 	reader := NewSegmentReader(segment)
 	ents := make([]*pb.Entry, 0)
 	assert.EqualValues(t, segment.blocks, reader.blocks)
@@ -55,7 +56,8 @@ func TestSegmentReader_Block4(t *testing.T) {
 
 // 写入的数据量大于block8
 func TestSegmentReader_Blocks(t *testing.T) {
-	segment := MockSegmentWrite(Entries61MB)
+	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
+	MockSegmentWrite(Entries61MB, segment)
 	reader := NewSegmentReader(segment)
 	ents := make([]*pb.Entry, 0)
 	//确保读出的数据正确
@@ -74,11 +76,9 @@ func TestSegmentReader_Blocks(t *testing.T) {
 	assert.EqualValues(t, Entries61MB, ents)
 }
 
-//
-
 func TestOrderedSegmentList(t *testing.T) {
 	// Create a new OrderedSegmentList
-	oll := NewOrderedSegmentList()
+	oll := newOrderedSegmentList()
 
 	// Create some segments
 	seg1 := &segment{Index: 1}
@@ -97,13 +97,13 @@ func TestOrderedSegmentList(t *testing.T) {
 	oll.Insert(seg4)
 
 	// Test Find method
-	foundSeg := oll.Find(2)
+	foundSeg := oll.find(2)
 	if foundSeg != seg2 {
 		t.Errorf("Expected segment with index 2, but got segment with index %d", foundSeg.Index)
 	}
 
 	// Test Find method with non-existent index
-	FoundSeg := oll.Find(4)
+	FoundSeg := oll.find(4)
 	if FoundSeg.Index != 3 {
 		t.Errorf("Expected segment with index 3, but got segment with index %d", FoundSeg.Index)
 	}

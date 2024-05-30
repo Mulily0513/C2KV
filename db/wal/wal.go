@@ -18,16 +18,17 @@ const (
 	TMPSuffix    = ".TMP"
 	RaftSuffix   = ".RAFT-SEG"
 	KVSuffix     = ".KV-SEG"
+	MB           = 2 * 1024 * 1024
 )
 
 type WAL struct {
-	WalDirPath    string
-	SegmentSize   int
-	ActiveSegment *segment
-	SegmentPipe   chan *segment
+	walDirPath    string
+	segmentSize   int
+	activeSegment *segment
+	segmentPipe   chan *segment
 	//todo ordered segment 是否会有并发问题
 	OrderSegmentList *OrderedSegmentList
-	RaftStateSegment *raftStateSegment //保存需要持久化的raft相关状态
+	RaftStateSegment *RaftStateSegment //保存需要持久化的raft相关状态
 	KVStateSegment   *KVStateSegment   //保存需要持久化的kv相关状态
 }
 
@@ -35,19 +36,19 @@ func NewWal(config config.WalConfig) *WAL {
 	segmentPipe := make(chan *segment, 1)
 	go func() {
 		for {
-			segmentPipe <- NewSegmentFile(config.WalDirPath, config.SegmentSize)
+			segmentPipe <- newSegmentFile(config.WalDirPath, config.SegmentSize)
 		}
 	}()
 
 	wal := &WAL{
-		WalDirPath:       config.WalDirPath,
-		SegmentSize:      config.SegmentSize * 2 * 1024 * 1024,
-		OrderSegmentList: NewOrderedSegmentList(),
-		ActiveSegment:    NewSegmentFile(config.WalDirPath, config.SegmentSize),
-		SegmentPipe:      segmentPipe,
+		walDirPath:       config.WalDirPath,
+		segmentSize:      config.SegmentSize * MB,
+		OrderSegmentList: newOrderedSegmentList(),
+		activeSegment:    newSegmentFile(config.WalDirPath, config.SegmentSize),
+		segmentPipe:      segmentPipe,
 	}
 
-	files, err := os.ReadDir(wal.WalDirPath)
+	files, err := os.ReadDir(wal.walDirPath)
 	if err != nil {
 		log.Panicf("read wal dir error", err)
 	}
@@ -59,35 +60,53 @@ func NewWal(config config.WalConfig) *WAL {
 			if _, err = fmt.Sscanf(fName, "%d.SEG", &index); err != nil {
 				log.Panicf("scan segment file id error", err)
 			}
-			wal.OrderSegmentList.Insert(OpenOldSegmentFile(wal.WalDirPath, index))
+			wal.OrderSegmentList.insert(openOldSegmentFile(wal.walDirPath, index))
 		}
 
 		if strings.HasSuffix(fName, RaftSuffix) {
-			if wal.RaftStateSegment, err = OpenRaftStateSegment(wal.WalDirPath, fName); err != nil {
+			if wal.RaftStateSegment, err = openRaftStateSegment(wal.walDirPath, fName); err != nil {
 				log.Panicf("open old raft state segment file error", err)
 			}
 		}
 
 		if strings.HasSuffix(fName, KVSuffix) {
-			if wal.KVStateSegment, err = OpenKVStateSegment(wal.WalDirPath, fName); err != nil {
+			if wal.KVStateSegment, err = OpenKVStateSegment(wal.walDirPath, fName); err != nil {
 				log.Panicf("open old kv state segment file error", err)
 			}
 		}
 	}
 
 	if wal.RaftStateSegment == nil {
-		if wal.RaftStateSegment, err = OpenRaftStateSegment(wal.WalDirPath, uuid.New().String()+RaftSuffix); err != nil {
+		if wal.RaftStateSegment, err = openRaftStateSegment(wal.walDirPath, uuid.New().String()+RaftSuffix); err != nil {
 			log.Panicf("create a new raft state segment file error", err)
 		}
 	}
 
 	if wal.KVStateSegment == nil {
-		if wal.KVStateSegment, err = OpenKVStateSegment(wal.WalDirPath, uuid.New().String()+KVSuffix); err != nil {
+		if wal.KVStateSegment, err = OpenKVStateSegment(wal.walDirPath, uuid.New().String()+KVSuffix); err != nil {
 			log.Panicf("create a new kv state segment file error", err)
 		}
 	}
 
 	return wal
+}
+
+func (wal *WAL) activeSegmentIsFull(delta int) bool {
+	//应尽可能使segment大小均匀，这样查找能提高查找某个entry的效率
+	//active segment size 是根据目前已分配的block数量来计算的，而不是实际数据占用空间
+	actSegSize := wal.activeSegment.allocatedSize()
+	totalSize := actSegSize + delta
+
+	// 1、total size > wal.segmentSize
+	// 2、delta > wal.SegmentSize*0.5
+	// 3、已经分配了内存空间
+	return totalSize > wal.segmentSize && float64(delta) > float64(wal.segmentSize)*0.5 && wal.activeSegment.blockNums != 0
+}
+
+func (wal *WAL) rotateactiveSegment() {
+	newSegment := <-wal.segmentPipe
+	wal.OrderSegmentList.insert(wal.activeSegment)
+	wal.activeSegment = newSegment
 }
 
 func (wal *WAL) Write(entries []*pb.Entry) error {
@@ -102,37 +121,19 @@ func (wal *WAL) Write(entries []*pb.Entry) error {
 
 	// if current active segment file is full, create a new one.
 	if wal.activeSegmentIsFull(bytesCount) {
-		wal.rotateActiveSegment()
+		wal.rotateactiveSegment()
 	}
 
-	return wal.ActiveSegment.Write(data, bytesCount, entries[0].Index)
-}
-
-func (wal *WAL) activeSegmentIsFull(delta int) bool {
-	//应尽可能使segment大小均匀，这样查找能提高查找某个entry的效率
-	//active segment size 是根据目前已分配的block数量来计算的，而不是实际数据占用空间
-	actSegSize := wal.ActiveSegment.AllocatedSize()
-	totalSize := actSegSize + delta
-
-	// 1、total size > wal.segmentSize
-	// 2、delta > wal.SegmentSize*0.5
-	// 3、已经分配了内存空间
-	return totalSize > wal.SegmentSize && float64(delta) > float64(wal.SegmentSize)*0.5 && wal.ActiveSegment.blockNums != 0
-}
-
-func (wal *WAL) rotateActiveSegment() {
-	newSegment := <-wal.SegmentPipe
-	wal.OrderSegmentList.Insert(wal.ActiveSegment)
-	wal.ActiveSegment = newSegment
+	return wal.activeSegment.write(data, bytesCount, entries[0].Index)
 }
 
 // Truncate truncate掉index之后的所有segment包括当前的active segment
 func (wal *WAL) Truncate(index uint64) error {
 	//todo 需要停止向active segment写入此时有没有并发问题？
-	wal.OrderSegmentList.Insert(wal.ActiveSegment)
-	wal.ActiveSegment = <-wal.SegmentPipe
+	wal.OrderSegmentList.insert(wal.activeSegment)
+	wal.activeSegment = <-wal.segmentPipe
 
-	seg := wal.OrderSegmentList.Find(index)
+	seg := wal.OrderSegmentList.find(index)
 	reader := NewSegmentReader(seg)
 	for {
 		header, err := reader.ReadHeader()
@@ -157,29 +158,29 @@ func (wal *WAL) Truncate(index uint64) error {
 func (wal *WAL) Close() error {
 	node := wal.OrderSegmentList.Head
 	for node != nil {
-		err := node.Seg.Close()
+		err := node.Seg.close()
 		if err != nil {
 			return err
 		}
 		node = node.Next
 	}
 	// close the active segment file.
-	return wal.ActiveSegment.Close()
+	return wal.activeSegment.close()
 }
 
 func (wal *WAL) Remove() error {
 	node := wal.OrderSegmentList.Head
 	for node != nil {
-		err := node.Seg.Remove()
+		err := node.Seg.remove()
 		if err != nil {
 			return err
 		}
 		node = node.Next
 	}
 
-	wal.ActiveSegment.Remove()
+	wal.activeSegment.remove()
 
-	filepath.Walk(wal.WalDirPath, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(wal.walDirPath, func(path string, info os.FileInfo, err error) error {
 		if !info.IsDir() && strings.HasSuffix(path, ".TMP") {
 			os.Remove(path)
 		}

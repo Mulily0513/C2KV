@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 )
 
 type SegmentID = uint32
@@ -25,7 +24,7 @@ type segment struct {
 	Index              uint64 //该segment文件中的最小log index
 	defaultSegmentSize int
 	Fd                 *os.File
-	blockPool          *BlockPool
+	blockPool          *blockPool
 
 	blocks        []byte //当前segment使用的blocks
 	blockNums     int    //记录当前segment已分配的blocks数量
@@ -36,13 +35,13 @@ type segment struct {
 	closed           bool
 }
 
-func NewSegmentFile(dirPath string, segmentSize int) *segment {
+func newSegmentFile(dirPath string, segmentSize int) *segment {
 	fd, err := iooperator.OpenDirectIOFile(filepath.Join(dirPath, fmt.Sprintf("%s"+TMPSuffix, uuid.New().String())), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		log.Panicf("create a new segment file error", err)
 	}
 
-	blockPool := NewBlockPool()
+	blockPool := newBlockPool()
 	return &segment{
 		WalDirPath:         dirPath,
 		Index:              DefaultMinLogIndex,
@@ -52,16 +51,16 @@ func NewSegmentFile(dirPath string, segmentSize int) *segment {
 	}
 }
 
-func OpenOldSegmentFile(walDirPath string, index uint64) *segment {
-	fd, err := iooperator.OpenDirectIOFile(SegmentFileName(walDirPath, index), os.O_CREATE|os.O_RDWR, 0644)
+func openOldSegmentFile(walDirPath string, index uint64) *segment {
+	fd, err := iooperator.OpenDirectIOFile(segmentFileName(walDirPath, index), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		log.Panicf("open old segment file error", err)
 	}
 
 	fileInfo, _ := fd.Stat()
 	fSize := fileInfo.Size()
-	blockNums := fSize / Block4096
-	remain := fSize % Block4096
+	blockNums := fSize / block4096
+	remain := fSize % block4096
 	if remain > 0 {
 		blockNums++
 	}
@@ -73,15 +72,15 @@ func OpenOldSegmentFile(walDirPath string, index uint64) *segment {
 	}
 }
 
-func SegmentFileName(walDirPath string, index uint64) string {
+func segmentFileName(walDirPath string, index uint64) string {
 	return filepath.Join(walDirPath, fmt.Sprintf("%014d"+SegSuffix, index))
 }
 
-func (seg *segment) Write(data []byte, bytesCount int, firstIndex uint64) (err error) {
+func (seg *segment) write(data []byte, bytesCount int, firstIndex uint64) (err error) {
 	//当Blocks为nil时重新分配blocks
 	if seg.blocks == nil {
-		blocks, blockNums := seg.blockPool.AlignedBlock(bytesCount)
-		seg.BlocksRemainSize = blockNums * Block4096
+		blocks, blockNums := seg.blockPool.alignedBlock(bytesCount)
+		seg.BlocksRemainSize = blockNums * block4096
 		seg.blocksOffset = 0
 		seg.blocks = blocks
 		seg.blockNums += blockNums
@@ -93,17 +92,17 @@ func (seg *segment) Write(data []byte, bytesCount int, firstIndex uint64) (err e
 		seg.segmentOffset += len(seg.blocks)
 		seg.blockPool.recycleBlock(seg.blocks)
 
-		newBlock, nums := seg.blockPool.AlignedBlock(bytesCount)
-		seg.BlocksRemainSize = nums * Block4096
+		newBlock, nums := seg.blockPool.alignedBlock(bytesCount)
+		seg.BlocksRemainSize = nums * block4096
 		seg.blockNums = seg.blockNums + nums
 		seg.blocks = newBlock
 		seg.blocksOffset = 0
 		copy(seg.blocks[seg.blocksOffset:bytesCount], data)
 	}
 
-	if err = seg.Flush(); err == nil {
+	if err = seg.flush(); err == nil {
 		//超过Block4或者Block8的块不会回收直接清空
-		if len(seg.blocks) > Block4 || len(seg.blocks) > Block8 {
+		if len(seg.blocks) > block4 || len(seg.blocks) > block8 {
 			seg.segmentOffset += len(seg.blocks)
 			seg.blocks = nil
 			seg.BlocksRemainSize = 0
@@ -119,13 +118,11 @@ func (seg *segment) Write(data []byte, bytesCount int, firstIndex uint64) (err e
 	if seg.Index == DefaultMinLogIndex {
 		seg.Index = firstIndex
 		seg.Fd.Close()
-		err = os.Rename(seg.Fd.Name(), SegmentFileName(seg.WalDirPath, seg.Index))
-		if err != nil {
+		if err = os.Rename(seg.Fd.Name(), segmentFileName(seg.WalDirPath, seg.Index)); err != nil {
 			log.Panicf("open segment file %s failed: %v", seg.Fd.Name(), err)
 			return err
 		}
-		seg.Fd, err = iooperator.OpenDirectIOFile(SegmentFileName(seg.WalDirPath, seg.Index), os.O_CREATE|os.O_RDWR, 0644)
-		if err != nil {
+		if seg.Fd, err = iooperator.OpenDirectIOFile(segmentFileName(seg.WalDirPath, seg.Index), os.O_CREATE|os.O_RDWR, 0644); err != nil {
 			log.Panicf("open segment file %s failed: %v", seg.Fd.Name(), err)
 			return err
 		}
@@ -134,7 +131,7 @@ func (seg *segment) Write(data []byte, bytesCount int, firstIndex uint64) (err e
 	return
 }
 
-func (seg *segment) Flush() (err error) {
+func (seg *segment) flush() (err error) {
 	_, err = seg.Fd.Seek(int64(seg.segmentOffset), io.SeekStart)
 	if err != nil {
 		return err
@@ -148,11 +145,11 @@ func (seg *segment) Flush() (err error) {
 	return
 }
 
-func (seg *segment) AllocatedSize() int {
-	return seg.blockNums * Block4096
+func (seg *segment) allocatedSize() int {
+	return seg.blockNums * block4096
 }
 
-func (seg *segment) Close() error {
+func (seg *segment) close() error {
 	if seg.closed {
 		return nil
 	}
@@ -160,14 +157,14 @@ func (seg *segment) Close() error {
 	return seg.Fd.Close()
 }
 
-func (seg *segment) Remove() error {
+func (seg *segment) remove() error {
 	if seg.closed {
 		err := os.Remove(seg.Fd.Name())
 		if err != nil {
 			log.Errorf("remove segment file %s failed: %v", seg.Fd.Name(), err)
 		}
 	} else {
-		if err := seg.Close(); err == nil {
+		if err := seg.close(); err == nil {
 			err = os.Remove(seg.Fd.Name())
 			if err != nil {
 				log.Errorf("remove segment file %s failed: %v", seg.Fd.Name(), err)
@@ -189,11 +186,11 @@ type Node struct {
 	Next *Node
 }
 
-func NewOrderedSegmentList() *OrderedSegmentList {
+func newOrderedSegmentList() *OrderedSegmentList {
 	return &OrderedSegmentList{}
 }
 
-func (oll *OrderedSegmentList) Insert(seg *segment) {
+func (oll *OrderedSegmentList) insert(seg *segment) {
 	newNode := &Node{Seg: seg}
 
 	if oll.Head == nil || oll.Head.Seg.Index >= seg.Index {
@@ -212,7 +209,7 @@ func (oll *OrderedSegmentList) Insert(seg *segment) {
 }
 
 // Find find segment which segment.index<=index and next segment.index>index
-func (oll *OrderedSegmentList) Find(index uint64) *segment {
+func (oll *OrderedSegmentList) find(index uint64) *segment {
 	current := oll.Head
 	var prev *Node
 
@@ -246,33 +243,33 @@ func (oll *OrderedSegmentList) truncate(index uint64) {
 	}
 
 	for node != nil {
-		node.Seg.Close()
-		node.Seg.Remove()
+		node.Seg.close()
+		node.Seg.remove()
 		node = node.Next
 	}
 }
 
-// restore memory and truncate wal will use reader
-type segmentReader struct {
+// SegmentReader restore memory and truncate wal will use reader
+type SegmentReader struct {
 	blocks       []byte
 	blocksOffset int // current read pointer in blocks
 	blocksNums   int // blocks  number
 }
 
-func NewSegmentReader(seg *segment) *segmentReader {
-	blocks := alignedBlock(seg.blockNums)
+func NewSegmentReader(seg *segment) *SegmentReader {
+	blocks := alignedblock(seg.blockNums)
 	seg.Fd.Seek(0, io.SeekStart)
 	_, err := seg.Fd.Read(blocks)
 	if err != nil {
 		log.Panicf("read file error", err)
 	}
-	return &segmentReader{
+	return &SegmentReader{
 		blocks:     blocks,
 		blocksNums: seg.blockNums,
 	}
 }
 
-func (sr *segmentReader) ReadHeader() (eHeader marshal.WalEntryHeader, err error) {
+func (sr *SegmentReader) ReadHeader() (eHeader marshal.WalEntryHeader, err error) {
 	// todo chunkHeaderSlice应该池化减少GC
 	buf := make([]byte, marshal.ChunkHeaderSize)
 	copy(buf, sr.blocks[sr.blocksOffset:sr.blocksOffset+marshal.ChunkHeaderSize])
@@ -282,17 +279,17 @@ func (sr *segmentReader) ReadHeader() (eHeader marshal.WalEntryHeader, err error
 		//当前block已经读空，需要判断下一个block是否能读出数据若为空则返回EOF
 		//算出当前的blocksOffset位于blocks中的第几个块若为blocks中的最后一个块返回eof,
 		//若不为最后一个块则移动指针到下一个块读取header
-		blockNums := sr.blocksOffset / Block4096
-		if remain := sr.blocksOffset % Block4096; remain > 0 {
+		blockNums := sr.blocksOffset / block4096
+		if remain := sr.blocksOffset % block4096; remain > 0 {
 			blockNums++
 		}
 
 		//若当前块为blocks中的最后一块return EOF
-		if len(sr.blocks)/Block4096 == blockNums {
+		if len(sr.blocks)/block4096 == blockNums {
 			return eHeader, errors.New("EOF")
 		}
 
-		sr.blocksOffset = blockNums * Block4096
+		sr.blocksOffset = blockNums * block4096
 		copy(buf, sr.blocks[sr.blocksOffset:sr.blocksOffset+marshal.ChunkHeaderSize])
 		eHeader = marshal.DecodeWALEntryHeader(buf)
 		if eHeader.IsEmpty() {
@@ -305,7 +302,7 @@ func (sr *segmentReader) ReadHeader() (eHeader marshal.WalEntryHeader, err error
 	return
 }
 
-func (sr *segmentReader) ReadEntry(header marshal.WalEntryHeader) (ent *pb.Entry, err error) {
+func (sr *SegmentReader) ReadEntry(header marshal.WalEntryHeader) (ent *pb.Entry, err error) {
 	ent = new(pb.Entry)
 	err = ent.Unmarshal(sr.blocks[sr.blocksOffset : sr.blocksOffset+header.EntrySize])
 	if err != nil {
@@ -314,97 +311,109 @@ func (sr *segmentReader) ReadEntry(header marshal.WalEntryHeader) (ent *pb.Entry
 	return
 }
 
-func (sr *segmentReader) Next(entrySize int) {
+func (sr *SegmentReader) Next(entrySize int) {
 	sr.blocksOffset += entrySize
 }
 
-// StateSegment
-// +-------+-----------+-----------+
-// |  crc  | state size|   state   |
-// +-------+-----------+-----------+
-// |----------HEADER---|---BODY----+
-
-type raftStateSegment struct {
-	Fd             *os.File
-	RaftState      pb.HardState
-	AppliedIndex   uint64
-	CommittedIndex uint64
-	Blocks         []byte
-	closed         bool
+// RaftStateSegment 记录raft相关需要持久化的状态
+type RaftStateSegment struct {
+	fd        *os.File
+	RaftState pb.HardState
+	blocks    []byte
+	closed    bool
 }
 
-func (seg *raftStateSegment) encodeRaftStateSegment() []byte {
-	return nil
-}
-
-func (seg *raftStateSegment) decodeRaftStateSegment() {
-	return
-}
-
-func OpenRaftStateSegment(walDirPath, fileName string) (rSeg *raftStateSegment, err error) {
+func openRaftStateSegment(walDirPath, fileName string) (rSeg *RaftStateSegment, err error) {
 	fd, err := iooperator.OpenDirectIOFile(filepath.Join(walDirPath, fileName), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err = fd.Seek(0, io.SeekStart); err != nil {
-		log.Panicf("seek to the end of segment file %s failed: %v", ".SEG", err)
-	}
-
-	blockPool := NewBlockPool()
-	rSeg = new(raftStateSegment)
-	rSeg.Fd = fd
+	rSeg = new(RaftStateSegment)
+	rSeg.fd = fd
 	rSeg.RaftState = pb.HardState{}
-	rSeg.Blocks = blockPool.Block4
-	fileInfo, _ := rSeg.Fd.Stat()
+	rSeg.blocks = alignedblock(num4)
+	fileInfo, _ := rSeg.fd.Stat()
 
 	//若fsize不为0读取文件的数据到block并序列化到pb.HardState
 	if fileInfo.Size() > 0 {
-		rSeg.Fd.Read(rSeg.Blocks)
+		rSeg.fd.Read(rSeg.blocks)
 		rSeg.decodeRaftStateSegment()
 	}
 
 	return rSeg, nil
 }
 
-func (seg *raftStateSegment) Flush() (err error) {
-	data := seg.encodeRaftStateSegment()
-	copy(seg.Blocks[0:len(data)], data)
-	_, err = seg.Fd.Seek(0, io.SeekStart)
+func (seg *RaftStateSegment) encodeRaftStateSegment() []byte {
+	bytes, err := seg.RaftState.Marshal()
+	length := len(bytes)
 	if err != nil {
+		return nil
+	}
+
+	return nil
+}
+
+func (seg *RaftStateSegment) decodeRaftStateSegment() {
+	return
+}
+
+func (seg *RaftStateSegment) Save(hs pb.HardState) (err error) {
+	seg.RaftState = hs
+	data := seg.encodeRaftStateSegment()
+	copy(seg.blocks[0:len(data)], data)
+	if _, err = seg.fd.Seek(0, io.SeekStart); err != nil {
 		return
 	}
-	_, err = seg.Fd.Write(data)
-	if err != nil {
+	if _, err = seg.fd.Write(data); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (seg *raftStateSegment) Remove() error {
-	if !seg.closed {
-		seg.closed = true
-		_ = seg.Fd.Close()
-	}
-
-	return os.Remove(seg.Fd.Name())
-}
-
-func (seg *raftStateSegment) Close() error {
+func (seg *RaftStateSegment) Close() error {
 	if seg.closed {
 		return nil
 	}
-
 	seg.closed = true
-	return seg.Fd.Close()
+	return seg.fd.Close()
 }
 
+func (seg *RaftStateSegment) Remove() error {
+	if !seg.closed {
+		seg.closed = true
+		_ = seg.fd.Close()
+	}
+	return os.Remove(seg.fd.Name())
+}
+
+// KVStateSegment 记录存储引擎相关需要持久化的状态
 type KVStateSegment struct {
-	lock         sync.Mutex
-	Fd           *os.File
+	fd           *os.File
 	PersistIndex uint64
-	Blocks       []byte
+	AppliedIndex uint64
+	blocks       []byte
 	closed       bool
+}
+
+func OpenKVStateSegment(walDirPath, fileName string) (kvSeg *KVStateSegment, err error) {
+	fd, err := iooperator.OpenDirectIOFile(filepath.Join(walDirPath, fileName), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	kvSeg = new(KVStateSegment)
+	kvSeg.fd = fd
+	kvSeg.blocks = alignedblock(num4)
+	fileInfo, _ := kvSeg.fd.Stat()
+
+	//若fsize不为0读取文件的数据到block并序列化到pb.HardState
+	if fileInfo.Size() > 0 {
+		kvSeg.fd.Read(kvSeg.blocks)
+		kvSeg.decodeKVStateSegment()
+	}
+
+	return kvSeg, nil
 }
 
 func (seg *KVStateSegment) encodeKVStateSegment() []byte {
@@ -415,56 +424,18 @@ func (seg *KVStateSegment) decodeKVStateSegment() {
 	return
 }
 
-func OpenKVStateSegment(walDirPath, fileName string) (kvSeg *KVStateSegment, err error) {
-	fd, err := iooperator.OpenDirectIOFile(filepath.Join(walDirPath, fileName), os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = fd.Seek(0, io.SeekStart)
-	if err != nil {
-		panic(fmt.Errorf("seek to the end of segment file %s failed: %v", ".SEG", err))
-	}
-
-	blockPool := NewBlockPool()
-	kvSeg = new(KVStateSegment)
-	kvSeg.Fd = fd
-	kvSeg.Blocks = blockPool.Block4
-	fileInfo, _ := kvSeg.Fd.Stat()
-
-	//若fsize不为0读取文件的数据到block并序列化到pb.HardState
-	if fileInfo.Size() > 0 {
-		kvSeg.Fd.Read(kvSeg.Blocks)
-		kvSeg.decodeKVStateSegment()
-	}
-
-	return kvSeg, nil
-}
-
-func (seg *KVStateSegment) Flush() (err error) {
-	seg.lock.Lock()
-	defer seg.lock.Unlock()
-
+func (seg *KVStateSegment) Save() (err error) {
 	data := seg.encodeKVStateSegment()
-	copy(seg.Blocks[0:len(data)], data)
-	_, err = seg.Fd.Seek(0, io.SeekStart)
+	copy(seg.blocks[0:len(data)], data)
+	_, err = seg.fd.Seek(0, io.SeekStart)
 	if err != nil {
 		return
 	}
-	_, err = seg.Fd.Write(data)
+	_, err = seg.fd.Write(data)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (seg *KVStateSegment) Remove() error {
-	if !seg.closed {
-		seg.closed = true
-		_ = seg.Fd.Close()
-	}
-
-	return os.Remove(seg.Fd.Name())
 }
 
 func (seg *KVStateSegment) Close() error {
@@ -473,5 +444,14 @@ func (seg *KVStateSegment) Close() error {
 	}
 
 	seg.closed = true
-	return seg.Fd.Close()
+	return seg.fd.Close()
+}
+
+func (seg *KVStateSegment) Remove() error {
+	if !seg.closed {
+		seg.closed = true
+		_ = seg.fd.Close()
+	}
+
+	return os.Remove(seg.fd.Name())
 }

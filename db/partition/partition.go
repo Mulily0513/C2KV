@@ -14,7 +14,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"time"
 )
 
 const (
@@ -132,7 +131,7 @@ func OpenPartition(partitionDir string) (p *Partition) {
 	}
 
 	if p.indexer == nil {
-		p.indexer, err = NewIndexer(p.dirPath, time.Now().Format("2006-01-02T15:04:05")+indexFileSuffixName)
+		p.indexer, err = NewIndexer(p.dirPath, uuid.New().String()+indexFileSuffixName)
 	}
 
 	go func() {
@@ -205,7 +204,7 @@ func (p *Partition) PersistKvs(kvs []*marshal.KV, wg *sync.WaitGroup, errC chan 
 	var fileCurrentOffset int64
 	for _, kv := range kvs {
 		if kv.Data.Type == marshal.TypeDelete {
-			ops = append(ops, &Op{Delete, &marshal.BytesKV{Key: kv.Key, Value: kv.Data.Value}})
+			ops = append(ops, &Op{Delete, marshal.BytesKV{Key: kv.Key, Value: kv.Data.Value}})
 			continue
 		}
 
@@ -223,18 +222,18 @@ func (p *Partition) PersistKvs(kvs []*marshal.KV, wg *sync.WaitGroup, errC chan 
 		//	meta.Value = kv.Data.Value
 		//}
 
-		ops = append(ops, &Op{op: Insert, kv: &marshal.BytesKV{Key: kv.Key, Value: marshal.EncodeIndexMeta(meta)}})
+		ops = append(ops, &Op{op: Insert, kv: marshal.BytesKV{Key: kv.Key, Value: marshal.EncodeIndexMeta(meta)}})
 		fileCurrentOffset += int64(len(kv.Data.Value))
 		if _, err = buf.Write(kv.Data.Value); err != nil {
 			return
 		}
 	}
 
-	if tx, err = p.indexer.StartTx(); err != nil {
+	if tx, err = p.indexer.BeginTx(); err != nil {
 		log.Errorf("start index transaction failed", err)
 		return
 	}
-	if err = p.indexer.Execute(tx, ops); err != nil {
+	if err = p.indexer.ExecuteOps(tx, ops); err != nil {
 		tx.Rollback()
 		return
 	}
@@ -260,4 +259,8 @@ func (p *Partition) AutoCompaction() {
 
 func (p *Partition) Compaction() {
 
+}
+
+func (p *Partition) Remove() error {
+	return os.RemoveAll(p.dirPath)
 }

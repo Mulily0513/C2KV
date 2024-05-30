@@ -63,8 +63,8 @@ func TestKVStorage_RestoreMemEntFromWAL(t *testing.T) {
 	ApplyIndex := 11123
 	CommittedIndex := 15666
 	C2KV.wal.KVStateSegment.PersistIndex = uint64(PersisitIndex)
-	C2KV.wal.RaftStateSegment.AppliedIndex = uint64(ApplyIndex)
-	C2KV.wal.RaftStateSegment.CommittedIndex = uint64(CommittedIndex)
+	C2KV.wal.KVStateSegment.AppliedIndex = uint64(ApplyIndex)
+	C2KV.wal.RaftStateSegment.RaftState.Commit = uint64(CommittedIndex)
 	C2KV.restoreMemEntries()
 }
 
@@ -74,8 +74,8 @@ func TestKVStorage_RestoreImMemFromWAL(t *testing.T) {
 	ApplyIndex := 11123
 	CommittedIndex := 15666
 	C2KV.wal.KVStateSegment.PersistIndex = uint64(PersisitIndex)
-	C2KV.wal.RaftStateSegment.AppliedIndex = uint64(ApplyIndex)
-	C2KV.wal.RaftStateSegment.CommittedIndex = uint64(CommittedIndex)
+	C2KV.wal.KVStateSegment.AppliedIndex = uint64(ApplyIndex)
+	C2KV.wal.RaftStateSegment.RaftState.Commit = uint64(CommittedIndex)
 	C2KV.restoreImMemTable()
 }
 

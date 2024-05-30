@@ -8,7 +8,7 @@ import (
 
 func TestWAL_Truncate(t *testing.T) {
 	truncateIndex := uint64(25000)
-	wal := NewWal(TestWALConfig1)
+	wal := NewWal(TestWALCfg1Size)
 	ents := SplitEntries(10000, Entries61MB)
 	for _, e := range ents {
 		err := wal.Write(e)
@@ -17,12 +17,12 @@ func TestWAL_Truncate(t *testing.T) {
 		}
 	}
 
-	truncBeforeSeg := wal.OrderSegmentList.Find(truncateIndex)
+	truncBeforeSeg := wal.OrderSegmentList.find(truncateIndex)
 	entries1 := readEntriesBySeg(truncBeforeSeg)
 
 	wal.Truncate(truncateIndex)
 
-	truncAfterSeg := wal.OrderSegmentList.Find(truncateIndex)
+	truncAfterSeg := wal.OrderSegmentList.find(truncateIndex)
 	entries2 := readEntriesBySeg(truncAfterSeg)
 
 	entries3 := make([]*pb.Entry, 0)
@@ -44,7 +44,7 @@ func TestWAL_Write(t *testing.T) {
 			t.Log(err)
 		}
 	}()
-	wal := NewWal(TestWALConfig64)
+	wal := NewWal(TestWALCfg64Size)
 	if err != nil {
 		t.Fatal(err)
 	}

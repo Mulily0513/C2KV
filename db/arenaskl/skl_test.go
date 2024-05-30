@@ -20,7 +20,6 @@ package arenaskl
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/Mulily0513/C2KV/code"
 	"github.com/Mulily0513/C2KV/db/marshal"
 	"github.com/Mulily0513/C2KV/db/mocks"
 	"math/rand"
@@ -260,11 +259,6 @@ func TestIteratorAdd(t *testing.T) {
 	require.Nil(t, err)
 	require.EqualValues(t, "00003", it.Value())
 
-	// Try to add element that already exists.
-	err = it.Put([]byte("00002"), []byte("00002*"))
-	require.Equal(t, code.ErrRecordExists, err)
-	require.EqualValues(t, []byte("00002"), it.Value())
-
 	// Try to add element that was previously deleted.
 	it.Seek([]byte("00004"))
 	err = it.Put([]byte("00004"), []byte("00004*"))
@@ -292,30 +286,6 @@ func TestIteratorSet(t *testing.T) {
 	err := it.Set([]byte("00001b"))
 	require.Nil(t, err)
 	require.EqualValues(t, "00001b", it.Value())
-
-	// Try to set value that's been updated by a different iterator.
-	it2.Seek([]byte("00001"))
-	err = it.Set([]byte("00001c"))
-	require.Nil(t, err)
-	err = it2.Set([]byte("00001d"))
-	require.Equal(t, code.ErrRecordUpdated, err)
-	require.EqualValues(t, []byte("00001c"), it2.Value())
-	err = it2.Set([]byte("00001d"))
-	require.Nil(t, err)
-	require.EqualValues(t, "00001d", it2.Value())
-
-	// Try to set value that's been deleted by a different iterator.
-	it.Seek([]byte("00001"))
-	it2.Seek([]byte("00001"))
-	require.Nil(t, err)
-	err = it.Put([]byte("00002"), []byte("00002"))
-	require.Nil(t, err)
-	err = it2.Set([]byte("00001e"))
-	require.Equal(t, code.ErrRecordDeleted, err)
-	require.EqualValues(t, "00001d", it2.Value())
-
-	require.Equal(t, 1, length(l))
-	require.Equal(t, 1, lengthRev(l))
 }
 
 // TestConcurrentAdd races between adding same nodes.

@@ -98,12 +98,15 @@ func TestMemTable_Queue(t *testing.T) {
 		t.Errorf("Expected queue size to be 3, but got %d", queue.size)
 	}
 
-	dequeuedTable := queue.Dequeue()
-	if dequeuedTable != table1 {
+	if dequeuedTable1 := queue.Dequeue(); dequeuedTable1 != table1 {
 		t.Error("Dequeued table does not match expected table")
 	}
 
-	if queue.size != 2 {
-		t.Errorf("Expected queue size to be 2 after dequeue, but got %d", queue.size)
+	if dequeuedTable2 := queue.Dequeue(); dequeuedTable2 != table2 {
+		t.Error("Dequeued table does not match expected table")
+	}
+
+	if dequeuedTable3 := queue.Dequeue(); dequeuedTable3 != table3 {
+		t.Error("Dequeued table does not match expected table")
 	}
 }

@@ -67,8 +67,10 @@ func (v *ValueLog) ListenAndFlush() {
 		mem := <-v.memFlushC
 		kvs := mem.All()
 		partitionRecords := make([][]*marshal.KV, v.vlogCfg.PartitionNums)
-		//lastRecords := marshal.DecodeData(kvs[len(kvs)-1].Value)
+		//lastKV := kvs[len(kvs)-1]
+		//lastRecords := marshal.DecodeData(lastKV.Value)
 
+		//对key进行hash分区
 		for _, record := range kvs {
 			p := v.getKeyPartition(record.Key)
 			kv := new(marshal.KV)
@@ -87,8 +89,6 @@ func (v *ValueLog) ListenAndFlush() {
 			go v.partitions[i].PersistKvs(partitionRecords[i], wg, errC)
 		}
 		wg.Wait()
-
-		//todo 若有错误其他协程也应该立即停止
 
 		//todo 索引刷新成功、vlog刷新成功、persistIndex刷新成功应该是一个原子操作
 		//v.kvStateSeg.PersistIndex = lastRecords.Index

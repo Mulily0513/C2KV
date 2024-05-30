@@ -36,6 +36,7 @@ type Storage interface {
 	Truncate(index uint64) error
 
 	Close()
+	Remove()
 }
 
 type C2KV struct {
@@ -50,10 +51,6 @@ type C2KV struct {
 	wal *wal.WAL
 
 	valueLog *ValueLog
-
-	logOffset uint64
-
-	sync.Mutex
 
 	entries []*pb.Entry //stable raft log entries
 }
@@ -109,7 +106,7 @@ func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 
 func (db *C2KV) restoreImMemTable() {
 	persistIndex := db.wal.KVStateSegment.PersistIndex
-	appliedIndex := db.wal.RaftStateSegment.AppliedIndex
+	appliedIndex := db.wal.KVStateSegment.AppliedIndex
 	Node := db.wal.OrderSegmentList.Head
 	kvC := make(chan *marshal.KV, 1000)
 	var bytesCount int64
@@ -186,8 +183,8 @@ func (db *C2KV) restoreImMemTable() {
 }
 
 func (db *C2KV) restoreMemEntries() {
-	appliedIndex := db.wal.RaftStateSegment.AppliedIndex
-	committedIndex := db.wal.RaftStateSegment.CommittedIndex
+	appliedIndex := db.wal.KVStateSegment.AppliedIndex
+	committedIndex := db.wal.RaftStateSegment.RaftState.Commit
 	Node := db.wal.OrderSegmentList.Head
 	for Node != nil {
 		if Node.Seg.Index <= appliedIndex && Node.Next.Seg.Index >= appliedIndex {
@@ -310,8 +307,7 @@ func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry) error {
 }
 
 func (db *C2KV) PersistHardState(st pb.HardState) error {
-	db.wal.RaftStateSegment.RaftState = st
-	return db.wal.RaftStateSegment.Flush()
+	return db.wal.RaftStateSegment.Save(st)
 }
 
 func (db *C2KV) Truncate(index uint64) error {
@@ -379,5 +375,9 @@ func (db *C2KV) InitialState() (pb.HardState, pb.ConfState) {
 }
 
 func (db *C2KV) Close() {
+
+}
+
+func (db *C2KV) Remove() {
 
 }
