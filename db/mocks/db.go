@@ -120,12 +120,11 @@ func (mr *MockStorageMockRecorder) Get(key interface{}) *gomock.Call {
 }
 
 // InitialState mocks base method.
-func (m *MockStorage) InitialState() (pb.HardState, pb.ConfState) {
+func (m *MockStorage) InitialState() pb.HardState {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InitialState")
 	ret0, _ := ret[0].(pb.HardState)
-	ret1, _ := ret[1].(pb.ConfState)
-	return ret0, ret1
+	return ret0
 }
 
 // InitialState indicates an expected call of InitialState.
@@ -160,6 +159,18 @@ func (m *MockStorage) PersistUnstableEnts(entries []*pb.Entry) error {
 func (mr *MockStorageMockRecorder) PersistUnstableEnts(entries interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistUnstableEnts", reflect.TypeOf((*MockStorage)(nil).PersistUnstableEnts), entries)
+}
+
+// Remove mocks base method.
+func (m *MockStorage) Remove() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Remove")
+}
+
+// Remove indicates an expected call of Remove.
+func (mr *MockStorageMockRecorder) Remove() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockStorage)(nil).Remove))
 }
 
 // Scan mocks base method.

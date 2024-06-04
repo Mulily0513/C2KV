@@ -155,6 +155,10 @@ func (wal *WAL) Truncate(index uint64) error {
 	return nil
 }
 
+func (wal *WAL) RaftState() {
+
+}
+
 func (wal *WAL) Close() error {
 	node := wal.OrderSegmentList.Head
 	for node != nil {

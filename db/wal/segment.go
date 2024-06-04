@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 type SegmentID = uint32
@@ -315,7 +316,8 @@ func (sr *SegmentReader) Next(entrySize int) {
 	sr.blocksOffset += entrySize
 }
 
-// RaftStateSegment 记录raft相关需要持久化的状态
+// RaftStateSegment raft相关需要持久化的状态
+
 type RaftStateSegment struct {
 	fd        *os.File
 	RaftState pb.HardState
@@ -371,7 +373,7 @@ func (seg *RaftStateSegment) Save(hs pb.HardState) (err error) {
 	return nil
 }
 
-func (seg *RaftStateSegment) Close() error {
+func (seg *RaftStateSegment) close() error {
 	if seg.closed {
 		return nil
 	}
@@ -379,7 +381,7 @@ func (seg *RaftStateSegment) Close() error {
 	return seg.fd.Close()
 }
 
-func (seg *RaftStateSegment) Remove() error {
+func (seg *RaftStateSegment) remove() error {
 	if !seg.closed {
 		seg.closed = true
 		_ = seg.fd.Close()
@@ -387,9 +389,10 @@ func (seg *RaftStateSegment) Remove() error {
 	return os.Remove(seg.fd.Name())
 }
 
-// KVStateSegment 记录存储引擎相关需要持久化的状态
+// KVStateSegment 存储引擎相关需要持久化的状态
 type KVStateSegment struct {
 	fd           *os.File
+	lock         *sync.Mutex
 	PersistIndex uint64
 	AppliedIndex uint64
 	blocks       []byte
@@ -424,7 +427,13 @@ func (seg *KVStateSegment) decodeKVStateSegment() {
 	return
 }
 
-func (seg *KVStateSegment) Save() (err error) {
+func (seg *KVStateSegment) Save(persistIndex, appliedIndex uint64) (err error) {
+	if persistIndex != seg.PersistIndex && persistIndex > 0 {
+		seg.PersistIndex = persistIndex
+	}
+	if appliedIndex != seg.AppliedIndex && persistIndex > 0 {
+		seg.AppliedIndex = appliedIndex
+	}
 	data := seg.encodeKVStateSegment()
 	copy(seg.blocks[0:len(data)], data)
 	_, err = seg.fd.Seek(0, io.SeekStart)
@@ -438,7 +447,7 @@ func (seg *KVStateSegment) Save() (err error) {
 	return nil
 }
 
-func (seg *KVStateSegment) Close() error {
+func (seg *KVStateSegment) close() error {
 	if seg.closed {
 		return nil
 	}
@@ -447,7 +456,7 @@ func (seg *KVStateSegment) Close() error {
 	return seg.fd.Close()
 }
 
-func (seg *KVStateSegment) Remove() error {
+func (seg *KVStateSegment) remove() error {
 	if !seg.closed {
 		seg.closed = true
 		_ = seg.fd.Close()

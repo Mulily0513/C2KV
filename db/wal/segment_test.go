@@ -11,8 +11,8 @@ func TestSegmentFile_newSegmentFile(t *testing.T) {
 	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
 	assert.EqualValues(t, segment.Index, DefaultMinLogIndex)
 	assert.EqualValues(t, segment.blocksOffset, 0)
-	segment.Close()
-	segment.Remove()
+	segment.close()
+	segment.remove()
 }
 
 func TestSegmentFile_Write(t *testing.T) {
@@ -26,7 +26,7 @@ func TestSegmentFile_Write(t *testing.T) {
 	// 5、连续写入>block4，<block8的数据
 	// 6、连续写入大于block8的数据
 	data, bytesCount := MarshalWALEntries(Entries5)
-	segment.Write(data, bytesCount, Entries5[0].Index)
+	segment.write(data, bytesCount, Entries5[0].Index)
 
 	assert.EqualValues(t, len(segment.blocks), bytesCount+segment.BlocksRemainSize)
 	assert.EqualValues(t, bytesCount, segment.blocksOffset)
@@ -89,12 +89,12 @@ func TestOrderedSegmentList(t *testing.T) {
 	seg6 := &segment{Index: 6}
 
 	// Insert segments into the OrderedSegmentList
-	oll.Insert(seg2)
-	oll.Insert(seg1)
-	oll.Insert(seg3)
-	oll.Insert(seg5)
-	oll.Insert(seg6)
-	oll.Insert(seg4)
+	oll.insert(seg2)
+	oll.insert(seg1)
+	oll.insert(seg3)
+	oll.insert(seg5)
+	oll.insert(seg6)
+	oll.insert(seg4)
 
 	// Test Find method
 	foundSeg := oll.find(2)

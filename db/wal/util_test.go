@@ -83,7 +83,7 @@ func MarshalWALEntries(entries []*pb.Entry) (data []byte, bytesCount int) {
 
 func MockSegmentWrite(entries []*pb.Entry, segment *segment) {
 	data, bytesCount := MarshalWALEntries(entries)
-	segment.Write(data, bytesCount, entries[0].Index)
+	segment.write(data, bytesCount, entries[0].Index)
 }
 
 func readEntriesBySeg(segment *segment) (entries []*pb.Entry) {

@@ -14,7 +14,7 @@ import (
 )
 
 //  log structure
-//  ......persist................applied|first.................committed.................stabled....................last
+//  ......persist................applied|first.................commit.....................stable....................last
 //	--------|--------mem-table----------|--------------------storage slice------------------|-----raft log slice------|
 //	--vlog--|--------------------------wal--------------------------------------------------|
 
@@ -24,10 +24,11 @@ type Storage interface {
 	Scan(lowKey []byte, highKey []byte) (kvs []*marshal.KV, err error)
 	Apply(kvs []*marshal.KV) error
 
-	PersistUnstableEnts(entries []*pb.Entry) error
+	// 需要持久化的raft相关状态
 	PersistHardState(hs pb.HardState) error
-	InitialState() (hs pb.HardState, cs pb.ConfState)
+	InitialState() (hs pb.HardState)
 
+	PersistUnstableEnts(entries []*pb.Entry) error
 	Entries(lo, hi uint64) ([]*pb.Entry, error)
 	Term(i uint64) (uint64, error)
 	FirstIndex() uint64
@@ -293,6 +294,20 @@ func (db *C2KV) maybeRotateMemTable(bytesCount int64) {
 	}
 }
 
+func (db *C2KV) PersistHardState(st pb.HardState) error {
+	return db.wal.RaftStateSegment.Save(st)
+}
+
+func (db *C2KV) InitialState() pb.HardState {
+	return pb.HardState{}
+}
+
+func (db *C2KV) Truncate(index uint64) error {
+	offset := db.entries[0].Index
+	db.entries = db.entries[index-offset:]
+	return db.wal.Truncate(index)
+}
+
 func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry) error {
 	if len(entries) == 0 {
 		return nil
@@ -304,16 +319,6 @@ func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry) error {
 	}
 	db.entries = append(db.entries, entries...)
 	return nil
-}
-
-func (db *C2KV) PersistHardState(st pb.HardState) error {
-	return db.wal.RaftStateSegment.Save(st)
-}
-
-func (db *C2KV) Truncate(index uint64) error {
-	offset := db.entries[0].Index
-	db.entries = db.entries[index-offset:]
-	return db.wal.Truncate(index)
 }
 
 func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
@@ -368,10 +373,6 @@ func (db *C2KV) lastIndex() uint64 {
 		return 0
 	}
 	return db.entries[uint64(len(db.entries))-1].Index
-}
-
-func (db *C2KV) InitialState() (pb.HardState, pb.ConfState) {
-	return pb.HardState{}, pb.ConfState{}
 }
 
 func (db *C2KV) Close() {

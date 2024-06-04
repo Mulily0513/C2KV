@@ -584,9 +584,18 @@ func (r *raft) send(m *pb.Message) {
 }
 
 func (r *raft) advance(rd Ready) {
+	//todo applied index r.raftlog.Storage.AppliedIndex?
+
 	if n := len(rd.CommittedEntries); n > 0 {
 		r.raftLog.appliedTo(rd.CommittedEntries[n-1].Index)
 	}
+
+	//todo
+	//if n := len(rd.UnstableEntries);n>0{
+	//	if newStabled := rd.UnstableEntries[n-1].Index; newStabled > 0 && newStabled > r.raftLog.stabled {
+	//		r.raftLog.stableTo(newStabled)
+	//	}
+	//}
 
 	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 && newStabled > r.raftLog.stabled {
 		r.raftLog.stableTo(newStabled)
