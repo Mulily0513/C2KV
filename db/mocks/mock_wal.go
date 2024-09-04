@@ -3,9 +3,12 @@ package mocks
 import (
 	"github.com/Mulily0513/C2KV/db/marshal"
 	"github.com/Mulily0513/C2KV/pb"
+	"path"
 )
 
 const CreatEntriesFmt = "create entries nums %d, data length %d, bytes count %s"
+
+var WALPath = path.Join(DBPath, "WAL")
 
 var Entries61MB = CreateEntries(50000, 250)
 var Entries133MB = CreateEntries(500000, 250)

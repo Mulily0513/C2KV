@@ -10,6 +10,7 @@ import (
 	"github.com/Mulily0513/C2KV/transport"
 	"github.com/Mulily0513/C2KV/transport/types"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -17,7 +18,7 @@ type AppNode struct {
 	localId    uint64
 	localIAddr string
 	peers      []config.Peer
-	monitorKV  map[int64]chan struct{}
+	monitorKV  map[uint64]chan struct{}
 
 	raftNode  raft.Node
 	transport transport.Transporter
@@ -32,7 +33,7 @@ func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *
 	proposeC := make(chan []byte, raftConfig.RequestTimeOut)
 	confChangeC := make(chan pb.ConfChange)
 	kvServiceStopC := make(chan struct{})
-	monitorKV := make(map[int64]chan struct{})
+	monitorKV := make(map[uint64]chan struct{})
 
 	an := &AppNode{
 		localId:        localInfo.LocalId,
@@ -84,40 +85,37 @@ func (an *AppNode) servePeerRaft() {
 }
 
 func (an *AppNode) serveRaftNode() {
-	//时钟1ms震动一次
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
-	var err error
 	for {
 		select {
 		case <-ticker.C:
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
+			wg := new(sync.WaitGroup)
 			log.Infof("ready:%+v", rd)
 			if !raft.IsEmptyHardState(rd.HardState) {
-				if err = an.kvStorage.PersistHardState(rd.HardState); err != nil {
-					log.Panicf("save hard state failed", err)
-				}
+				wg.Add(1)
+				go an.kvStorage.PersistHardState(rd.HardState, wg)
 			}
 
 			if len(rd.UnstableEntries) > 0 {
-				if err = an.kvStorage.PersistUnstableEnts(rd.UnstableEntries); err != nil {
-					log.Panicf("save entries failed", err)
-				}
+				wg.Add(1)
+				go an.kvStorage.PersistUnstableEnts(rd.UnstableEntries, wg)
 			}
 
 			if len(rd.CommittedEntries) > 0 {
-				if err = an.applyCommittedEnts(rd.CommittedEntries); err != nil {
-					log.Panicf("apply entries failed", err)
-				}
+				wg.Add(1)
+				go an.applyCommittedEnts(rd.CommittedEntries, wg)
 			}
 
 			if len(rd.Messages) > 0 {
 				go an.transport.Send(rd.Messages)
 			}
 
-			//通知raftNode本轮ready已经处理完可以进行下一轮处理
+			wg.Wait()
+			//next turn
 			an.raftNode.Advance()
 		}
 	}
@@ -132,10 +130,10 @@ func (an *AppNode) servePropCAndConfC() {
 	}
 }
 
-func (an *AppNode) applyCommittedEnts(ents []*pb.Entry) (err error) {
-	entries := make([]*pb.Entry, 0)
+func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
+	defer wg.Done()
 
-	//apply entries
+	entries := make([]*pb.Entry, 0)
 	for i, entry := range ents {
 		switch ents[i].Type {
 		case pb.EntryNormal:
@@ -148,14 +146,15 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry) (err error) {
 
 	var kv *marshal.KV
 	kvs := make([]*marshal.KV, len(entries))
-	kvIds := make([]int64, 0)
+	kvIds := make([]uint64, 0)
 	for _, entry := range entries {
 		kv = marshal.DecodeKV(entry.Data)
 		kvs = append(kvs, kv)
 		kvIds = append(kvIds, kv.ApplySig)
 	}
 
-	if err = an.kvStorage.Apply(kvs); err != nil {
+	if err := an.kvStorage.Apply(kvs); err != nil {
+		log.Panicf("apply ents")
 		return
 	}
 
@@ -172,8 +171,7 @@ func (an *AppNode) Process(m *pb.Message) {
 	an.raftNode.Step(m)
 }
 
-// 关闭c2kv
-func (an *AppNode) stop() {
+func (an *AppNode) Close() {
 	an.transport.Stop()
 	an.raftNode.Stop()
 	close(an.proposeC)

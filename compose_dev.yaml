@@ -13,10 +13,10 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile-dev
-    #dlv debug
+    # dlv port
     ports:
       - 40001:40000
-      # ssh
+    # ssh port
       - 21:22
     tty: true
     networks:
@@ -41,10 +41,10 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile-dev
-    #dlv debug
+    # dlv port
     ports:
       - 40002:40000
-    # ssh
+    # ssh port
       - 22:22
     tty: true
     networks:
@@ -69,10 +69,10 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile-dev
-    #dlv debug
+    # dlv port
     ports:
       - 40003:40000
-      # ssh
+    # ssh port
       - 23:22
     tty: true
     networks:

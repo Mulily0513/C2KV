@@ -2,11 +2,11 @@ package partition
 
 import (
 	"bytes"
+	"errors"
 	"github.com/Mulily0513/C2KV/code"
 	"github.com/Mulily0513/C2KV/db/marshal"
 	"go.etcd.io/bbolt"
 	"os"
-	"path/filepath"
 )
 
 // bucket name for bolt db to store index data
@@ -18,9 +18,8 @@ const (
 	Delete              = 2
 )
 
-func NewIndexer(partitionDir string, indexFileName string) (*BtreeIndexer, error) {
-	fp := filepath.Join(partitionDir, indexFileName)
-	indexer, err := bbolt.Open(fp, 0600,
+func NewIndexer(indexFp string) (*BtreeIndexer, error) {
+	indexer, err := bbolt.Open(indexFp, 0600,
 		&bbolt.Options{
 			NoSync:          true,
 			InitialMmapSize: 1024,
@@ -41,7 +40,7 @@ func NewIndexer(partitionDir string, indexFileName string) (*BtreeIndexer, error
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return &BtreeIndexer{index: indexer, Fp: fp}, nil
+	return &BtreeIndexer{index: indexer, Fp: indexFp}, nil
 }
 
 type BtreeIndexer struct {
@@ -54,7 +53,7 @@ type Op struct {
 	kv marshal.BytesKV
 }
 
-func (b *BtreeIndexer) ExecuteOps(tx *bbolt.Tx, ops []*Op) (err error) {
+func (b *BtreeIndexer) ExecuteOps(tx *bbolt.Tx, ops []Op) (err error) {
 	txBucket := tx.Bucket(indexBucketName)
 	for _, op := range ops {
 		switch op.op {
@@ -108,9 +107,12 @@ func (b *BtreeIndexer) Scan(low, high []byte) (meta []marshal.BytesKV, err error
 }
 
 func (b *BtreeIndexer) Close() error {
-	return b.index.Close()
+	if b.index != nil {
+		return b.index.Close()
+	}
+	return errors.New("indexer is not exist")
 }
 
 func (b *BtreeIndexer) Remove() error {
-	return os.RemoveAll(b.Fp)
+	return os.Remove(b.Fp)
 }

@@ -16,13 +16,13 @@ import (
 type KvService struct {
 	Storage    db.Storage
 	proposeC   chan<- []byte
-	monitorKV  map[int64]chan struct{}
+	monitorKV  map[uint64]chan struct{}
 	ReqTimeout time.Duration
 	RaftNode   raft.Node
 }
 
 func StartKVAPIService(proposeC chan<- []byte, requestTimeOut int, kvStorage db.Storage,
-	monitorKV map[int64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}, raftNode raft.Node) {
+	monitorKV map[uint64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}, raftNode raft.Node) {
 	s := &KvService{
 		Storage:    kvStorage,
 		proposeC:   proposeC,
@@ -52,7 +52,7 @@ func ServeGRPCKVAPI(kvService *KvService, localEAddr string) {
 
 func (s *KvService) Propose(key, val []byte, delete bool) error {
 	timeOutC := time.NewTimer(s.ReqTimeout)
-	uid := int64(uuid.New().ID())
+	uid := uint64(uuid.New().ID())
 	kv := new(marshal.KV)
 	kv.Key = key
 	kv.Data.Value = val

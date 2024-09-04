@@ -17,19 +17,20 @@ const (
 	SegSuffix    = ".SEG"
 	TMPSuffix    = ".TMP"
 	RaftSuffix   = ".RAFT-SEG"
-	KVSuffix     = ".KV-SEG"
+	VlogSuffix   = ".VLOG-SEG"
+	WALSuffix    = ".WAL-SEG"
 	MB           = 2 * 1024 * 1024
 )
 
 type WAL struct {
-	walDirPath    string
-	segmentSize   int
-	activeSegment *segment
-	segmentPipe   chan *segment
-	//todo ordered segment 是否会有并发问题
+	walDirPath       string
+	segmentSize      int
+	activeSegment    *segment
+	segmentPipe      chan *segment
 	OrderSegmentList *OrderedSegmentList
-	RaftStateSegment *RaftStateSegment //保存需要持久化的raft相关状态
-	KVStateSegment   *KVStateSegment   //保存需要持久化的kv相关状态
+	RaftStateSegment *RaftStateSegment
+	VlogStateSegment *VlogStateSegment
+	WALStateSegment  *WALStateSegment
 }
 
 func NewWal(config config.WalConfig) *WAL {
@@ -50,7 +51,7 @@ func NewWal(config config.WalConfig) *WAL {
 
 	files, err := os.ReadDir(wal.walDirPath)
 	if err != nil {
-		log.Panicf("read wal dir error", err)
+		log.Panicf("read wal dir error %v", err)
 	}
 
 	var index uint64
@@ -58,33 +59,39 @@ func NewWal(config config.WalConfig) *WAL {
 		fName := file.Name()
 		if strings.HasSuffix(fName, SegSuffix) {
 			if _, err = fmt.Sscanf(fName, "%d.SEG", &index); err != nil {
-				log.Panicf("scan segment file id error", err)
+				log.Panicf("scan segment file id error %v", err)
 			}
 			wal.OrderSegmentList.insert(openOldSegmentFile(wal.walDirPath, index))
 		}
 
 		if strings.HasSuffix(fName, RaftSuffix) {
-			if wal.RaftStateSegment, err = openRaftStateSegment(wal.walDirPath, fName); err != nil {
-				log.Panicf("open old raft state segment file error", err)
+			if wal.RaftStateSegment, err = openRaftStateSegment(filepath.Join(wal.walDirPath, fName)); err != nil {
+				log.Panicf("open old raft state segment file error %v", err)
 			}
 		}
 
-		if strings.HasSuffix(fName, KVSuffix) {
-			if wal.KVStateSegment, err = OpenKVStateSegment(wal.walDirPath, fName); err != nil {
-				log.Panicf("open old kv state segment file error", err)
+		if strings.HasSuffix(fName, WALSuffix) {
+			if wal.WALStateSegment, err = OpenWALStateSegment(filepath.Join(wal.walDirPath, fName)); err != nil {
+				log.Panicf("open old kv state segment file error %v", err)
 			}
 		}
 	}
 
 	if wal.RaftStateSegment == nil {
-		if wal.RaftStateSegment, err = openRaftStateSegment(wal.walDirPath, uuid.New().String()+RaftSuffix); err != nil {
-			log.Panicf("create a new raft state segment file error", err)
+		if wal.RaftStateSegment, err = openRaftStateSegment(filepath.Join(wal.walDirPath, uuid.New().String()+RaftSuffix)); err != nil {
+			log.Panicf("create a new raft state segment file error %v", err)
 		}
 	}
 
-	if wal.KVStateSegment == nil {
-		if wal.KVStateSegment, err = OpenKVStateSegment(wal.walDirPath, uuid.New().String()+KVSuffix); err != nil {
-			log.Panicf("create a new kv state segment file error", err)
+	if wal.WALStateSegment == nil {
+		if wal.WALStateSegment, err = OpenWALStateSegment(filepath.Join(wal.walDirPath, uuid.New().String()+WALSuffix)); err != nil {
+			log.Panicf("create a new kv state segment file error %v", err)
+		}
+	}
+
+	if wal.VlogStateSegment == nil {
+		if wal.VlogStateSegment, err = OpenVlogStateSegment(filepath.Join(wal.walDirPath, uuid.New().String()+VlogSuffix)); err != nil {
+			log.Panicf("create a new kv state segment file error %v", err)
 		}
 	}
 
@@ -103,7 +110,7 @@ func (wal *WAL) activeSegmentIsFull(delta int) bool {
 	return totalSize > wal.segmentSize && float64(delta) > float64(wal.segmentSize)*0.5 && wal.activeSegment.blockNums != 0
 }
 
-func (wal *WAL) rotateactiveSegment() {
+func (wal *WAL) rotateActiveSegment() {
 	newSegment := <-wal.segmentPipe
 	wal.OrderSegmentList.insert(wal.activeSegment)
 	wal.activeSegment = newSegment
@@ -121,7 +128,7 @@ func (wal *WAL) Write(entries []*pb.Entry) error {
 
 	// if current active segment file is full, create a new one.
 	if wal.activeSegmentIsFull(bytesCount) {
-		wal.rotateactiveSegment()
+		wal.rotateActiveSegment()
 	}
 
 	return wal.activeSegment.write(data, bytesCount, entries[0].Index)

@@ -8,28 +8,29 @@ import (
 	"github.com/Mulily0513/C2KV/db/wal"
 	"github.com/google/uuid"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 )
 
-func MockDataMemTable(kvs []*marshal.KV) *MemTable {
-	mem := NewMemTable(TestMemConfig)
+func MockMemTableWithData(kvs []*marshal.KV) *memTable {
+	mem := newMemTable(mocks.TestMemConfig)
 	mem.ConcurrentPut(mocks.KVsTransToByteKVs(kvs))
 	return mem
 }
 
 func MockVlogFlush(mockKvs []*marshal.KV) *ValueLog {
-	kvs := MockDataMemTable(mockKvs).All()
+	kvs := MockMemTableWithData(mockKvs).All()
 	partitionRecords := make([][]*marshal.KV, 3)
 	mocks.CreateValueLogDirIfNotExist(mocks.ValueLogPath)
 	vlogCfg := mocks.VlogCfg
-	stateSegment, err := wal.OpenKVStateSegment(mocks.FilePath, uuid.New().String()+wal.SegSuffix)
+	stateSegment, err := wal.OpenKVStateSegment(filepath.Join(mocks.CurFilePath, uuid.New().String()+wal.SegSuffix))
 	if err != nil {
 		panic(err)
 	}
-	tableC := make(chan *MemTable, 1)
+	tableC := make(chan *memTable, 1)
 	errC := make(chan error)
-	vlog := OpenValueLog(vlogCfg, tableC, stateSegment)
+	vlog := openValueLog(vlogCfg, tableC, stateSegment)
 
 	for _, record := range kvs {
 		p := vlog.getKeyPartition(record.Key)
@@ -58,12 +59,12 @@ func TestValueLog_Open(t *testing.T) {
 		ValueLogDir:   mocks.ValueLogPath,
 		PartitionNums: 3,
 	}
-	tableC := make(chan *MemTable)
-	stateSegment, err := wal.OpenKVStateSegment(mocks.FilePath, uuid.New().String())
+	tableC := make(chan *memTable)
+	stateSegment, err := wal.OpenKVStateSegment(filepath.Join(mocks.CurFilePath, uuid.New().String()+wal.SegSuffix))
 	if err != nil {
 		t.Errorf("OpenKVStateSegment returned error: %v", err)
 	}
-	_ = OpenValueLog(vlogCfg, tableC, stateSegment)
+	_ = openValueLog(vlogCfg, tableC, stateSegment)
 	if err != nil {
 		t.Errorf("OpenValueLog returned error: %v", err)
 	}
@@ -73,15 +74,15 @@ func TestValueLog_Open(t *testing.T) {
 func TestValueLog_ListenAndFlush(t *testing.T) {
 	mocks.CreateValueLogDirIfNotExist(mocks.ValueLogPath)
 
-	tableC := make(chan *MemTable, 3)
-	stateSegment, err := wal.OpenKVStateSegment(mocks.FilePath, uuid.New().String()+wal.SegSuffix)
+	tableC := make(chan *memTable, 3)
+	stateSegment, err := wal.OpenKVStateSegment(filepath.Join(mocks.CurFilePath, uuid.New().String()+wal.SegSuffix))
 	if err != nil {
 		t.Errorf("OpenKVStateSegment returned error: %v", err)
 	}
-	vlog := OpenValueLog(mocks.VlogCfg, tableC, stateSegment)
+	vlog := openValueLog(mocks.VlogCfg, tableC, stateSegment)
 
-	tableC <- MockDataMemTable(mocks.KVS_RAND_35MB_HASDEL_UQKey)
-	vlog.ListenAndFlush()
+	tableC <- MockMemTableWithData(mocks.KVS_RAND_35MB_HASDEL_UQKey)
+	vlog.listenAndFlush()
 }
 
 func TestValueLog_Scan(t *testing.T) {

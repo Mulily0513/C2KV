@@ -1,25 +1,14 @@
-package iooperator
+package iobenchmark_test
 
 import (
 	"fmt"
-	"github.com/Mulily0513/C2KV/db/iooperator/directio"
+	"github.com/ncw/directio"
 	"io/ioutil"
 	"log"
 	"os"
 	"testing"
 	"time"
 )
-
-func GetTestData() []byte {
-	// 创建测试数据
-	blockSize := 4098
-	blockCount := 1
-	testData := make([]byte, blockSize*blockCount)
-	for i := 0; i < len(testData); i++ {
-		testData[i] = 1
-	}
-	return testData
-}
 
 func BenchmarkDirectIO(b *testing.B) {
 	b.ResetTimer() // 重置计时器，排除初始化代码的影响
@@ -49,7 +38,7 @@ func BenchmarkBufferdIO(b *testing.B) {
 
 func DirectIO(testData []byte) {
 	// Make a temporary file name
-	fd, err := os.CreateTemp("/Users/hlhf/GolandProjects/testdata", "direct_io_test")
+	fd, err := ioutil.TempFile("/Users/hlhf/GolandProjects/testdata", "direct_io_test")
 	if err != nil {
 		log.Fatal("Failed to make temp file", err)
 	}
@@ -57,7 +46,7 @@ func DirectIO(testData []byte) {
 	fd.Close()
 
 	// 使用直接IO进行测试
-	fileDirectIO, err := directio.OpenDirectFile(path, os.O_CREATE|os.O_WRONLY, 0666)
+	fileDirectIO, err := directio.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal("Failed to open file for direct IO:", err)
 	}
@@ -84,7 +73,18 @@ func BufferdIO(testData []byte) {
 	fileBufferedIO.Sync()
 }
 
-func TestDirectIOAndBufferdIOTime(t *testing.T) {
+func GetTestData() []byte {
+	// 创建测试数据
+	blockSize := 4096
+	blockCount := 1
+	testData := make([]byte, blockSize*blockCount)
+	for i := 0; i < len(testData); i++ {
+		testData[i] = 1
+	}
+	return testData
+}
+
+func TestDirectIO(t *testing.T) {
 	// 使用缓冲IO进行测试
 	testData := GetTestData()
 	startTime := time.Now()
@@ -92,9 +92,13 @@ func TestDirectIOAndBufferdIOTime(t *testing.T) {
 	DirectIO(testData)
 	// 输出执行时间
 	fmt.Println("Direct IO time:", directIOTime)
+}
 
-	startTime2 := time.Now()
-	bufferdIOTime := time.Since(startTime2)
+func TestBufferdIO(t *testing.T) {
+	// 使用缓冲IO进行测试
+	testData := GetTestData()
+	startTime := time.Now()
+	bufferdIOTime := time.Since(startTime)
 	BufferdIO(testData)
 	// 输出执行时间
 	fmt.Println("Buffered IO time:", bufferdIOTime)

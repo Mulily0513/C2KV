@@ -15,6 +15,7 @@ const (
 	EntrySize     = 4
 	IndexSize     = 8
 	TypeDelete    = 1
+	TypeInsert    = 2
 	TimeStampSize = 8
 	TypeSize      = 1
 	ApplySigSize  = 8
@@ -27,8 +28,8 @@ type BytesKV struct {
 }
 
 type KV struct {
-	ApplySig int64 //该条记录是否被应用
-	KeySize  int
+	ApplySig uint64
+	KeySize  uint32
 	Key      []byte
 	Data     *Data
 }
@@ -37,7 +38,7 @@ func EncodeKV(kv *KV) []byte {
 	dataBytes := EncodeData(kv.Data) // Serialize Data struct
 	keyLen := len(kv.Key)
 	buf := make([]byte, ApplySigSize+KeySize+keyLen+len(dataBytes))
-	binary.LittleEndian.PutUint64(buf[:ApplySigSize], uint64(kv.ApplySig))
+	binary.LittleEndian.PutUint64(buf[:ApplySigSize], kv.ApplySig)
 	binary.LittleEndian.PutUint32(buf[ApplySigSize:ApplySigSize+KeySize], uint32(keyLen))
 	copy(buf[ApplySigSize+KeySize:], kv.Key)
 	copy(buf[ApplySigSize+KeySize+keyLen:], dataBytes)
@@ -46,17 +47,17 @@ func EncodeKV(kv *KV) []byte {
 
 func DecodeKV(data []byte) (kv *KV) {
 	kv = &KV{}
-	kv.ApplySig = int64(binary.LittleEndian.Uint64(data[:ApplySigSize]))
-	kv.KeySize = int(binary.LittleEndian.Uint32(data[ApplySigSize : ApplySigSize+KeySize]))
+	kv.ApplySig = binary.LittleEndian.Uint64(data[:ApplySigSize])
+	kv.KeySize = binary.LittleEndian.Uint32(data[ApplySigSize : ApplySigSize+KeySize])
 	kv.Key = data[ApplySigSize+KeySize : ApplySigSize+KeySize+kv.KeySize]
 	kv.Data = DecodeData(data[ApplySigSize+KeySize+kv.KeySize:])
 	return kv
 }
 
 type Data struct {
-	Index     uint64
+	Index     uint64 //for raft log
 	TimeStamp int64
-	Type      int8
+	Type      int8 //insert or delete
 	Value     []byte
 }
 
@@ -133,7 +134,7 @@ type IndexerMeta struct {
 	ValueSize   int64
 	TimeStamp   int64
 	ValueCrc32  uint32
-	Value       []byte //smaller value could be place in this
+	Value       []byte //smaller value could be place in index
 }
 
 func EncodeIndexMeta(m *IndexerMeta) []byte {

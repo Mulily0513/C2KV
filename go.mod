@@ -1,6 +1,6 @@
 module github.com/Mulily0513/C2KV
 
-go 1.19
+go 1.20
 
 require (
 	github.com/bgentry/speakeasy v0.1.0

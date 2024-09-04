@@ -3,13 +3,15 @@ package wal
 import (
 	"fmt"
 	"github.com/Mulily0513/C2KV/pb"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"path/filepath"
 	"testing"
 )
 
 func TestSegmentFile_newSegmentFile(t *testing.T) {
 	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
-	assert.EqualValues(t, segment.Index, DefaultMinLogIndex)
+	assert.EqualValues(t, segment.Index, defaultMinLogIndex)
 	assert.EqualValues(t, segment.blocksOffset, 0)
 	segment.close()
 	segment.remove()
@@ -112,4 +114,65 @@ func TestOrderedSegmentList(t *testing.T) {
 		fmt.Println(oll.Head.Seg.Index)
 		oll.Head = oll.Head.Next
 	}
+}
+
+func TestOpenVlogStateSegment(t *testing.T) {
+	//test encode
+	vlogSeg, err := OpenVlogStateSegment(filepath.Join(TestWALCfg1Size.WalDirPath, uuid.New().String()+VlogSuffix))
+	if err != nil {
+		panic(err)
+	}
+	vlogSeg.Save(1)
+	assert.EqualValues(t, 1, vlogSeg.PersistIndex)
+
+	//test  decode
+	fpath := vlogSeg.fd.Name()
+	vlogSeg.Close()
+	vlogSeg, err = OpenVlogStateSegment(fpath)
+	if err != nil {
+		panic(err)
+	}
+	assert.EqualValues(t, 1, vlogSeg.PersistIndex)
+	vlogSeg.Remove()
+}
+
+func TestWALStateSegment(t *testing.T) {
+	//test encode
+	walSeg, err := OpenWALStateSegment(filepath.Join(TestWALCfg1Size.WalDirPath, uuid.New().String()+WALSuffix))
+	if err != nil {
+		panic(err)
+	}
+	walSeg.Save(1)
+	assert.EqualValues(t, 1, walSeg.AppliedIndex)
+
+	//test  decode
+	fpath := walSeg.fd.Name()
+	walSeg.Close()
+	walSeg, err = OpenWALStateSegment(fpath)
+	if err != nil {
+		panic(err)
+	}
+	assert.EqualValues(t, 1, walSeg.AppliedIndex)
+	walSeg.Remove()
+}
+
+func TestRaftStateSegment(t *testing.T) {
+	//test encode
+	raftSeg, err := openRaftStateSegment(filepath.Join(TestWALCfg1Size.WalDirPath, uuid.New().String()+RaftSuffix))
+	if err != nil {
+		panic(err)
+	}
+	hs := pb.HardState{Term: 1, Vote: 2, Commit: 3}
+	raftSeg.Save(hs)
+	assert.EqualValues(t, hs, raftSeg.RaftState)
+
+	//test decode
+	fpath := raftSeg.fd.Name()
+	raftSeg.Close()
+	raftSeg, err = openRaftStateSegment(fpath)
+	if err != nil {
+		panic(err)
+	}
+	assert.EqualValues(t, hs, raftSeg.RaftState)
+	raftSeg.Remove()
 }

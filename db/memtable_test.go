@@ -1,17 +1,11 @@
 package db
 
 import (
-	"github.com/Mulily0513/C2KV/config"
 	"github.com/Mulily0513/C2KV/db/marshal"
 	"github.com/Mulily0513/C2KV/db/mocks"
 	"reflect"
 	"testing"
 )
-
-var TestMemConfig = config.MemConfig{
-	MemTableSize: 64,
-	Concurrency:  8,
-}
 
 func TestMemTable_Scan(t *testing.T) {
 	//获取验证集
@@ -27,7 +21,7 @@ func TestMemTable_Scan(t *testing.T) {
 		lowIndex++
 	}
 
-	mem := NewMemTable(TestMemConfig)
+	mem := newMemTable(mocks.TestMemConfig)
 	//获取测试集
 	sklIter := mem.newSklIter()
 	for _, kv := range kvs {
@@ -44,7 +38,7 @@ func TestMemTable_All(t *testing.T) {
 		bytesKvs = append(bytesKvs, &marshal.BytesKV{Key: kv.Key, Value: marshal.EncodeData(kv.Data)})
 	}
 
-	mem := NewMemTable(TestMemConfig)
+	mem := newMemTable(mocks.TestMemConfig)
 	mem.ConcurrentPut(bytesKvs)
 
 	allKvs := mem.All()
@@ -58,7 +52,7 @@ func TestMemTable_All(t *testing.T) {
 
 func TestMemTable_Get(t *testing.T) {
 	kv := mocks.OneKV
-	mem := NewMemTable(TestMemConfig)
+	mem := newMemTable(mocks.TestMemConfig)
 	sklIter := mem.newSklIter()
 	err := sklIter.Put(kv.Key, marshal.EncodeData(kv.Data))
 	if err != nil {
@@ -85,10 +79,10 @@ func TestMemTable_Get(t *testing.T) {
 }
 
 func TestMemTable_Queue(t *testing.T) {
-	queue := NewMemTableQueue(3)
-	table1 := &MemTable{}
-	table2 := &MemTable{}
-	table3 := &MemTable{}
+	queue := newMemTableQueue(3)
+	table1 := &memTable{}
+	table2 := &memTable{}
+	table3 := &memTable{}
 
 	queue.Enqueue(table1)
 	queue.Enqueue(table2)

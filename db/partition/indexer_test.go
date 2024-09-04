@@ -5,13 +5,14 @@ import (
 	"github.com/Mulily0513/C2KV/db/marshal"
 	"github.com/google/uuid"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
 
 func TestBtreeIndexer_Get(t *testing.T) {
 	getwd, _ := os.Getwd()
-	indexer, err := NewIndexer(getwd, uuid.New().String()+indexFileSuffixName)
+	indexer, err := NewIndexer(filepath.Join(getwd, uuid.New().String()+indexFileSuffixName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,8 +22,8 @@ func TestBtreeIndexer_Get(t *testing.T) {
 
 	key := []byte("testKey")
 	value := []byte("testValue")
-	ops := make([]*Op, 0) //(Insert, &arshal.BytesKV{Key: key, Value: value})
-	ops = append(ops, &Op{Insert, marshal.BytesKV{Key: key, Value: value}})
+	ops := make([]Op, 0) //(Insert, &arshal.BytesKV{Key: key, Value: value})
+	ops = append(ops, Op{Insert, marshal.BytesKV{Key: key, Value: value}})
 
 	err = indexer.ExecuteOps(tx, ops)
 	if err != nil {
@@ -41,7 +42,7 @@ func TestBtreeIndexer_Get(t *testing.T) {
 
 func TestBtreeIndexer_Scan(t *testing.T) {
 	getwd, _ := os.Getwd()
-	indexer, err := NewIndexer(getwd, uuid.New().String()+indexFileSuffixName)
+	indexer, err := NewIndexer(filepath.Join(getwd, uuid.New().String()+indexFileSuffixName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,10 +51,10 @@ func TestBtreeIndexer_Scan(t *testing.T) {
 	tx, err := indexer.BeginTx()
 	low := []byte("a")
 	high := []byte("z")
-	ops := make([]*Op, 0)
-	ops = append(ops, &Op{Insert, marshal.BytesKV{Key: []byte("b"), Value: []byte("value1")}})
-	ops = append(ops, &Op{Insert, marshal.BytesKV{Key: []byte("c"), Value: []byte("value2")}})
-	ops = append(ops, &Op{Insert, marshal.BytesKV{Key: []byte("d"), Value: []byte("value3")}})
+	ops := make([]Op, 0)
+	ops = append(ops, Op{Insert, marshal.BytesKV{Key: []byte("b"), Value: []byte("value1")}})
+	ops = append(ops, Op{Insert, marshal.BytesKV{Key: []byte("c"), Value: []byte("value2")}})
+	ops = append(ops, Op{Insert, marshal.BytesKV{Key: []byte("d"), Value: []byte("value3")}})
 	err = indexer.ExecuteOps(tx, ops)
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +77,7 @@ func TestBtreeIndexer_Scan(t *testing.T) {
 
 func TestBtreeIndexer_Delete(t *testing.T) {
 	getwd, _ := os.Getwd()
-	indexer, err := NewIndexer(getwd, uuid.New().String()+indexFileSuffixName)
+	indexer, err := NewIndexer(filepath.Join(getwd, uuid.New().String()+indexFileSuffixName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,8 +87,8 @@ func TestBtreeIndexer_Delete(t *testing.T) {
 	tx, err := indexer.BeginTx()
 	key := []byte("testKey")
 	value := []byte("testValue")
-	ops := make([]*Op, 0)
-	ops = append(ops, &Op{Insert, marshal.BytesKV{Key: key, Value: value}})
+	ops := make([]Op, 0)
+	ops = append(ops, Op{Insert, marshal.BytesKV{Key: key, Value: value}})
 	if err = indexer.ExecuteOps(tx, ops); err != nil {
 		t.Fatal(err)
 	}
@@ -95,8 +96,8 @@ func TestBtreeIndexer_Delete(t *testing.T) {
 
 	//delete
 	tx, err = indexer.BeginTx()
-	ops = make([]*Op, 0)
-	ops = append(ops, &Op{Delete, marshal.BytesKV{Key: key, Value: value}})
+	ops = make([]Op, 0)
+	ops = append(ops, Op{Delete, marshal.BytesKV{Key: key, Value: value}})
 	err = indexer.ExecuteOps(tx, ops)
 	if err != nil {
 		t.Fatal(err)

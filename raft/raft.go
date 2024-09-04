@@ -120,7 +120,7 @@ func newRaft(opts *raftOpts) (r *raft) {
 		heartbeatTimeout: opts.heartbeatTimeout,
 	}
 
-	hs, _ := r.raftLog.storage.InitialState()
+	hs := r.raftLog.storage.InitialState()
 	if !IsEmptyHardState(hs) {
 		r.loadHardState(hs)
 	}
@@ -584,7 +584,8 @@ func (r *raft) send(m *pb.Message) {
 }
 
 func (r *raft) advance(rd Ready) {
-	//todo applied index r.raftlog.Storage.AppliedIndex?
+	//todo there have two choice to apply committed index or stable index
+	//one for ready ,another for kvstore
 
 	if n := len(rd.CommittedEntries); n > 0 {
 		r.raftLog.appliedTo(rd.CommittedEntries[n-1].Index)

@@ -21,27 +21,27 @@ const Partition = "PARTITION"
 type ValueLog struct {
 	vlogCfg config.ValueLogConfig
 
-	memFlushC chan *MemTable
+	memFlushC chan *memTable
 
-	kvStateSeg *wal.KVStateSegment
+	vlogStateSeg *wal.VlogStateSegment
 
 	partitions []*partition.Partition
 }
 
-func OpenValueLog(vlogCfg config.ValueLogConfig, tableC chan *MemTable, stateSegment *wal.KVStateSegment) (vlog *ValueLog) {
+func openValueLog(vlogCfg config.ValueLogConfig, tableC chan *memTable, vlogStateSegment *wal.VlogStateSegment) (vlog *ValueLog) {
 	dirs, err := os.ReadDir(vlogCfg.ValueLogDir)
 	if err != nil {
-		log.Panicf("open wal dir failed", err)
+		log.Panicf("open wal dir failed %v", err)
 	}
 
 	partitions := make([]*partition.Partition, 0)
-	vlog = &ValueLog{memFlushC: tableC, kvStateSeg: stateSegment, vlogCfg: vlogCfg}
+	vlog = &ValueLog{memFlushC: tableC, vlogStateSeg: vlogStateSegment, vlogCfg: vlogCfg}
 
 	if len(dirs) == 0 {
 		for i := 1; i <= vlog.vlogCfg.PartitionNums; i++ {
 			partitionDir := path.Join(vlogCfg.ValueLogDir, fmt.Sprintf(PartitionFormat, i))
 			if err = os.Mkdir(partitionDir, 0755); err != nil {
-				log.Panicf("create partition dir failed", err)
+				log.Panicf("create partition dir failed %v", err)
 			}
 			p := partition.OpenPartition(partitionDir)
 			partitions = append(partitions, p)
@@ -61,26 +61,26 @@ func OpenValueLog(vlogCfg config.ValueLogConfig, tableC chan *MemTable, stateSeg
 	return
 }
 
-func (v *ValueLog) ListenAndFlush() {
+func (v *ValueLog) listenAndFlush() {
 	errC := make(chan error, 1)
 	for {
 		mem := <-v.memFlushC
 		kvs := mem.All()
 		partitionRecords := make([][]*marshal.KV, v.vlogCfg.PartitionNums)
-		//lastKV := kvs[len(kvs)-1]
-		//lastRecords := marshal.DecodeData(lastKV.Value)
 
-		//对key进行hash分区
+		lastKV := kvs[len(kvs)-1]
+		lastRecords := marshal.DecodeData(lastKV.Value)
+
 		for _, record := range kvs {
 			p := v.getKeyPartition(record.Key)
 			kv := new(marshal.KV)
 			kv.Key = record.Key
-			kv.KeySize = len(record.Key)
+			kv.KeySize = uint32(len(record.Key))
 			kv.Data = marshal.DecodeData(record.Value)
 			partitionRecords[p] = append(partitionRecords[p], kv)
 		}
 
-		wg := &sync.WaitGroup{}
+		wg := new(sync.WaitGroup)
 		for i := 0; i < v.vlogCfg.PartitionNums; i++ {
 			if len(partitionRecords[i]) == 0 {
 				continue
@@ -90,12 +90,9 @@ func (v *ValueLog) ListenAndFlush() {
 		}
 		wg.Wait()
 
-		//todo 索引刷新成功、vlog刷新成功、persistIndex刷新成功应该是一个原子操作
-		//v.kvStateSeg.PersistIndex = lastRecords.Index
-		//err := v.kvStateSeg.Flush()
-		//if err != nil {
-		//	log.Panicf("can not flush kv state segment file %e", err)
-		//}
+		if err := v.vlogStateSeg.Save(lastRecords.Index); err != nil {
+			log.Panicf("can not flush kv state segment file %e", err)
+		}
 	}
 }
 
@@ -138,6 +135,6 @@ func (v *ValueLog) Close() error {
 }
 
 func (v *ValueLog) Delete() error {
-	v.kvStateSeg.Remove()
+	v.vlogStateSeg.Remove()
 	return os.RemoveAll(v.vlogCfg.ValueLogDir)
 }

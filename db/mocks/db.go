@@ -6,6 +6,7 @@ package mocks
 
 import (
 	reflect "reflect"
+	sync "sync"
 
 	marshal "github.com/Mulily0513/C2KV/db/marshal"
 	pb "github.com/Mulily0513/C2KV/pb"
@@ -134,31 +135,27 @@ func (mr *MockStorageMockRecorder) InitialState() *gomock.Call {
 }
 
 // PersistHardState mocks base method.
-func (m *MockStorage) PersistHardState(hs pb.HardState) error {
+func (m *MockStorage) PersistHardState(hs pb.HardState, wg *sync.WaitGroup) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PersistHardState", hs)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "PersistHardState", hs, wg)
 }
 
 // PersistHardState indicates an expected call of PersistHardState.
-func (mr *MockStorageMockRecorder) PersistHardState(hs interface{}) *gomock.Call {
+func (mr *MockStorageMockRecorder) PersistHardState(hs, wg interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistHardState", reflect.TypeOf((*MockStorage)(nil).PersistHardState), hs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistHardState", reflect.TypeOf((*MockStorage)(nil).PersistHardState), hs, wg)
 }
 
 // PersistUnstableEnts mocks base method.
-func (m *MockStorage) PersistUnstableEnts(entries []*pb.Entry) error {
+func (m *MockStorage) PersistUnstableEnts(entries []*pb.Entry, wg *sync.WaitGroup) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PersistUnstableEnts", entries)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "PersistUnstableEnts", entries, wg)
 }
 
 // PersistUnstableEnts indicates an expected call of PersistUnstableEnts.
-func (mr *MockStorageMockRecorder) PersistUnstableEnts(entries interface{}) *gomock.Call {
+func (mr *MockStorageMockRecorder) PersistUnstableEnts(entries, wg interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistUnstableEnts", reflect.TypeOf((*MockStorage)(nil).PersistUnstableEnts), entries)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistUnstableEnts", reflect.TypeOf((*MockStorage)(nil).PersistUnstableEnts), entries, wg)
 }
 
 // Remove mocks base method.

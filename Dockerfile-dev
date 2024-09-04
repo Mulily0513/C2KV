@@ -1,26 +1,28 @@
-FROM golang:1.19
+FROM golang:1.20
 
-# Build Delve
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+# intsall dlv
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.20.0
 
-RUN mkdir /var/run/sshd
+# install tools
 
 RUN apt-get update && apt-get install -y ssh && apt-get install -y bash &&  apt-get install -y vim && apt-get install -y net-tools
+
+# intsall SSH
+RUN mkdir /var/run/sshd
 
 RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
 RUN echo 'root:root1234' | chpasswd
 
-ADD . /app
-WORKDIR /app
-
-RUN go build  -o c2kv
-
 CMD ["/usr/sbin/sshd","-D"]
 
-EXPOSE 2345 7878
+# build c2kv
+ADD . /app
+RUN chmod +x /app/bin/build.sh && cp /app/bin/build.sh ../
+RUN chmod +x /app/bin/dlv_node.sh && cp /app/bin/dlv_node.sh ../
 
-# dlv debug
-# /go/bin/dlv --listen=:40000 --headless=true --api-version=2 --accept-multiclient exec ./c2kv
-# 编译
-# /usr/local/go/bin/go build -o c2kv
+WORKDIR /app
+RUN go build  -o c2kv
+
+# c2kv ports
+EXPOSE 2345 7878

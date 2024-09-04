@@ -24,11 +24,10 @@ type Storage interface {
 	Scan(lowKey []byte, highKey []byte) (kvs []*marshal.KV, err error)
 	Apply(kvs []*marshal.KV) error
 
-	// 需要持久化的raft相关状态
-	PersistHardState(hs pb.HardState) error
+	PersistHardState(hs pb.HardState, wg *sync.WaitGroup)
 	InitialState() (hs pb.HardState)
 
-	PersistUnstableEnts(entries []*pb.Entry) error
+	PersistUnstableEnts(entries []*pb.Entry, wg *sync.WaitGroup)
 	Entries(lo, hi uint64) ([]*pb.Entry, error)
 	Term(i uint64) (uint64, error)
 	FirstIndex() uint64
@@ -41,13 +40,13 @@ type Storage interface {
 }
 
 type C2KV struct {
-	activeMem *MemTable
+	activeMem *memTable
 
-	immtableQ *MemTableQueue
+	immtableQ *memTableQueue
 
-	memFlushC chan *MemTable
+	memFlushC chan *memTable
 
-	memTablePipe chan *MemTable
+	memTablePipe chan *memTable
 
 	wal *wal.WAL
 
@@ -78,27 +77,28 @@ func dbCfgCheck(dbCfg *config.DBConfig) {
 func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 	dbCfgCheck(dbCfg)
 	C2 = new(C2KV)
-	memFlushC := make(chan *MemTable, dbCfg.MemConfig.MemTableNums)
-	C2.memTablePipe = make(chan *MemTable, dbCfg.MemConfig.MemTablePipeSize)
-	C2.immtableQ = NewMemTableQueue(dbCfg.MemConfig.MemTableNums)
-	C2.activeMem = NewMemTable(dbCfg.MemConfig)
+	memFlushC := make(chan *memTable, dbCfg.MemConfig.MemTableNums)
+	C2.memTablePipe = make(chan *memTable, dbCfg.MemConfig.MemTablePipeSize)
+	C2.immtableQ = newMemTableQueue(dbCfg.MemConfig.MemTableNums)
+	C2.activeMem = newMemTable(dbCfg.MemConfig)
 	C2.memFlushC = memFlushC
 	C2.entries = make([]*pb.Entry, 0)
 	C2.wal = wal.NewWal(dbCfg.WalConfig)
 
 	go func() {
 		for {
-			C2.memTablePipe <- NewMemTable(dbCfg.MemConfig)
+			C2.memTablePipe <- newMemTable(dbCfg.MemConfig)
 		}
 	}()
 
+	//restore memory data
 	if C2.wal.OrderSegmentList.Head != nil {
 		go C2.restoreMemEntries()
 		go C2.restoreImMemTable()
 	}
 
-	C2.valueLog = OpenValueLog(dbCfg.ValueLogConfig, memFlushC, C2.wal.KVStateSegment)
-	go C2.valueLog.ListenAndFlush()
+	C2.valueLog = openValueLog(dbCfg.ValueLogConfig, memFlushC, C2.wal.VlogStateSegment)
+	go C2.valueLog.listenAndFlush()
 	return C2
 }
 
@@ -106,8 +106,8 @@ func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 //    |_________imm-table_________|___________ entries______________|
 
 func (db *C2KV) restoreImMemTable() {
-	persistIndex := db.wal.KVStateSegment.PersistIndex
-	appliedIndex := db.wal.KVStateSegment.AppliedIndex
+	persistIndex := db.wal.VlogStateSegment.PersistIndex
+	appliedIndex := db.wal.WALStateSegment.AppliedIndex
 	Node := db.wal.OrderSegmentList.Head
 	kvC := make(chan *marshal.KV, 1000)
 	var bytesCount int64
@@ -184,7 +184,7 @@ func (db *C2KV) restoreImMemTable() {
 }
 
 func (db *C2KV) restoreMemEntries() {
-	appliedIndex := db.wal.KVStateSegment.AppliedIndex
+	appliedIndex := db.wal.WALStateSegment.AppliedIndex
 	committedIndex := db.wal.RaftStateSegment.RaftState.Commit
 	Node := db.wal.OrderSegmentList.Head
 	for Node != nil {
@@ -252,6 +252,7 @@ func (db *C2KV) Scan(lowKey []byte, highKey []byte) ([]*marshal.KV, error) {
 		}
 		kvSlice = append(kvSlice, kvs...)
 		wg.Done()
+
 	}()
 
 	var medbKvs []*marshal.KV
@@ -273,6 +274,12 @@ func (db *C2KV) Scan(lowKey []byte, highKey []byte) ([]*marshal.KV, error) {
 }
 
 func (db *C2KV) Apply(kvs []*marshal.KV) (err error) {
+	lastIndex := kvs[len(kvs)-1].Data.Index
+	firstIndex := kvs[0].Data.Index
+	if firstIndex != db.FirstIndex() {
+		log.Panicf("the first index of kvs is not equal to the first index of wal %v", err)
+	}
+
 	kvBytes := make([]*marshal.BytesKV, len(kvs))
 	var bytesCount int64
 	for i, kv := range kvs {
@@ -281,7 +288,17 @@ func (db *C2KV) Apply(kvs []*marshal.KV) (err error) {
 		kvBytes[i] = &marshal.BytesKV{Key: kv.Key, Value: dataBytes}
 	}
 	db.maybeRotateMemTable(bytesCount)
-	return db.activeMem.ConcurrentPut(kvBytes)
+
+	if err = db.activeMem.ConcurrentPut(kvBytes); err != nil {
+		return err
+	}
+	if err = db.wal.WALStateSegment.Save(lastIndex); err != nil {
+		return err
+	}
+
+	offset := int64(lastIndex) - int64(firstIndex) + 1
+	db.entries = db.entries[offset:]
+	return
 }
 
 func (db *C2KV) maybeRotateMemTable(bytesCount int64) {
@@ -294,12 +311,16 @@ func (db *C2KV) maybeRotateMemTable(bytesCount int64) {
 	}
 }
 
-func (db *C2KV) PersistHardState(st pb.HardState) error {
-	return db.wal.RaftStateSegment.Save(st)
+func (db *C2KV) PersistHardState(st pb.HardState, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	if err := db.wal.RaftStateSegment.Save(st); err != nil {
+		log.Panicf("save raft hardstate failed")
+	}
 }
 
 func (db *C2KV) InitialState() pb.HardState {
-	return pb.HardState{}
+	return db.wal.RaftStateSegment.RaftState
 }
 
 func (db *C2KV) Truncate(index uint64) error {
@@ -308,21 +329,20 @@ func (db *C2KV) Truncate(index uint64) error {
 	return db.wal.Truncate(index)
 }
 
-func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry) error {
-	if len(entries) == 0 {
-		return nil
-	}
+func (db *C2KV) PersistUnstableEnts(entries []*pb.Entry, wg *sync.WaitGroup) {
+	defer wg.Done()
 
-	err := db.wal.Write(entries)
-	if err != nil {
-		return err
+	if len(entries) == 0 {
+		return
+	}
+	if err := db.wal.Write(entries); err != nil {
+		log.Panicf("wal save unstable ents failed")
 	}
 	db.entries = append(db.entries, entries...)
-	return nil
 }
 
 func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
-	if lo < db.firstIndex() || hi > db.lastIndex()+1 {
+	if lo < db.FirstIndex() || hi > db.lastIndex()+1 {
 		return nil, errors.New("some entries is compacted")
 	}
 
@@ -333,7 +353,7 @@ func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
 }
 
 func (db *C2KV) Term(i uint64) (uint64, error) {
-	if i < db.firstIndex() {
+	if i < db.FirstIndex() {
 		return 0, code.ErrCompacted
 	}
 	if i == 0 {
@@ -347,17 +367,13 @@ func (db *C2KV) Term(i uint64) (uint64, error) {
 }
 
 func (db *C2KV) AppliedIndex() uint64 {
-	if db.firstIndex() == 0 {
+	if db.FirstIndex() == 0 {
 		return 0
 	}
-	return db.firstIndex() - 1
+	return db.FirstIndex() - 1
 }
 
 func (db *C2KV) FirstIndex() uint64 {
-	return db.firstIndex()
-}
-
-func (db *C2KV) firstIndex() uint64 {
 	if len(db.entries) == 0 {
 		return 0
 	}

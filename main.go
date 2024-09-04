@@ -10,7 +10,7 @@ import (
 
 func main() {
 	var cfgPath string
-	flag.StringVar(&cfgPath, "cfg", "./bin/config.json", "c2kv config path")
+	flag.StringVar(&cfgPath, "cfg", "./bin/config_debug.json", "c2kv config path")
 	flag.Parse()
 	config.InitConfig(cfgPath)
 	log.InitLog(config.GetZapConf())

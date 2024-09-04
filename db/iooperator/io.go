@@ -6,14 +6,14 @@ import (
 	"os"
 )
 
-func OpenDirectIOFile(name string, flag int, perm os.FileMode) (file *os.File, err error) {
-	return directio.OpenDirectFile(name, flag, perm)
+func OpenDirectIOFile(fp string, flag int, perm os.FileMode) (file *os.File, err error) {
+	return directio.OpenDirectFile(fp, flag, perm)
 }
 
-func OpenBufferIOFile(name string, flag int, perm os.FileMode) *os.File {
-	file, err := os.OpenFile(name, flag, perm)
+func OpenBufferIOFile(fp string, flag int, perm os.FileMode) *os.File {
+	file, err := os.OpenFile(fp, flag, perm)
 	if err != nil {
-		log.Panicf("open buffer io file failed", err)
+		log.Panicf("open buffer io file failed %v", err)
 	}
 	return file
 }

@@ -2,16 +2,15 @@ package partition
 
 import (
 	"github.com/Mulily0513/C2KV/code"
-	"github.com/Mulily0513/C2KV/db/iooperator"
 	"github.com/Mulily0513/C2KV/db/marshal"
 	"github.com/Mulily0513/C2KV/log"
 	"github.com/google/uuid"
 	"github.com/valyala/bytebufferpool"
 	"go.etcd.io/bbolt"
 	"hash/crc32"
-	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -26,64 +25,7 @@ const (
 	None                 = ""
 )
 
-type SST struct {
-	Id      uint64
-	fd      *os.File
-	fName   string
-	SSTSize int64
-}
-
-// OpenSST todo 一个value如果跨两个block，那么可能需要访问两次硬盘,后续优化vlog中数据的对齐
-func OpenSST(filePath string) (*SST, error) {
-	return &SST{
-		Id:    uint64(uuid.New().ID()),
-		fd:    iooperator.OpenBufferIOFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666),
-		fName: filePath,
-	}, nil
-}
-
-func (s *SST) Write(buf []byte) (err error) {
-	_, err = s.fd.Write(buf)
-	if err != nil {
-		return err
-	}
-	return
-}
-
-func (s *SST) Read(vSize, vOffset int64) (buf []byte, err error) {
-	_, err = s.fd.Seek(vOffset, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
-	buf = make([]byte, vSize)
-	_, err = s.fd.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	return
-}
-
-func (s *SST) Close() {
-	if s.fd != nil {
-		s.fd.Close()
-	}
-}
-
-func (s *SST) Remove() {
-	os.RemoveAll(s.fName)
-}
-
-func (s *SST) Rename(fName string) {
-	if s.fd == nil {
-		log.Panicf("fd is nil")
-	}
-	s.fd.Close()
-	os.Rename(s.fName, fName)
-	s.fd = iooperator.OpenBufferIOFile(fName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
-	s.fName = fName
-}
-
-func createSSTFileName(partitionDirPath string, Flag int, fileName string) string {
+func createSSTFilePath(partitionDirPath string, Flag int, fileName string) string {
 	switch Flag {
 	case TmpSST:
 		return path.Join(partitionDirPath, uuid.New().String()+SSTFileTmpSuffixName)
@@ -92,11 +34,12 @@ func createSSTFileName(partitionDirPath string, Flag int, fileName string) strin
 	case OldSST:
 		return path.Join(partitionDirPath, fileName)
 	default:
+		log.Panicf("sst file flag is error %d", Flag)
 		return ""
 	}
 }
 
-// Partition 一个partition文件由一个index文件和多个sst文件组成
+// Partition  consists of an index file and multiple sst files.
 type Partition struct {
 	dirPath string
 	pipeSST chan *SST
@@ -116,13 +59,14 @@ func OpenPartition(partitionDir string) (p *Partition) {
 		log.Panicf("open partition dir failed %e", err)
 	}
 
+	var fName string
 	for _, file := range files {
-		fName := file.Name()
+		fName = file.Name()
 		switch {
 		case strings.HasSuffix(fName, indexFileSuffixName):
-			p.indexer, err = NewIndexer(p.dirPath, fName)
+			p.indexer, err = NewIndexer(filepath.Join(p.dirPath, fName))
 		case strings.HasSuffix(fName, SSTFileSuffixName):
-			sst, err := OpenSST(createSSTFileName(p.dirPath, OldSST, fName))
+			sst, err := OpenSST(createSSTFilePath(p.dirPath, OldSST, fName))
 			if err != nil {
 				return nil
 			}
@@ -131,13 +75,13 @@ func OpenPartition(partitionDir string) (p *Partition) {
 	}
 
 	if p.indexer == nil {
-		p.indexer, err = NewIndexer(p.dirPath, uuid.New().String()+indexFileSuffixName)
+		p.indexer, err = NewIndexer(filepath.Join(p.dirPath, uuid.New().String()+indexFileSuffixName))
 	}
 
 	go func() {
-		sst, err := OpenSST(createSSTFileName(p.dirPath, TmpSST, None))
+		sst, err := OpenSST(createSSTFilePath(p.dirPath, TmpSST, None))
 		if err != nil {
-			return
+			log.Errorf("create tmp sst file failed %e", err)
 		}
 		p.pipeSST <- sst
 	}()
@@ -152,6 +96,7 @@ func (p *Partition) Get(key []byte) (kv *marshal.KV, err error) {
 		return nil, err
 	}
 	index := marshal.DecodeIndexMeta(indexMeta.Value)
+
 	if sst, ok := p.SSTMap[index.SSTid]; ok {
 		value, err := sst.Read(index.ValueSize, index.ValueOffset)
 		if err != nil {
@@ -189,71 +134,73 @@ func (p *Partition) Scan(low, high []byte) (kvs []*marshal.KV, err error) {
 func (p *Partition) PersistKvs(kvs []*marshal.KV, wg *sync.WaitGroup, errC chan error) {
 	var err error
 	var tx *bbolt.Tx
+	var sst *SST
+
 	buf := bytebufferpool.Get()
 	buf.Reset()
 	defer func() {
 		bytebufferpool.Put(buf)
-		wg.Done()
 		if err != nil {
+			tx.Rollback()
+			sst.Remove()
 			errC <- err
 		}
+		wg.Done()
 	}()
 
-	sst := <-p.pipeSST
-	ops := make([]*Op, 0)
-	var fileCurrentOffset int64
+	sst = <-p.pipeSST
+	ops := make([]Op, 0)
+	var vlogCurOffset int64
 	for _, kv := range kvs {
 		if kv.Data.Type == marshal.TypeDelete {
-			ops = append(ops, &Op{Delete, marshal.BytesKV{Key: kv.Key, Value: kv.Data.Value}})
+			ops = append(ops, Op{Delete, marshal.BytesKV{Key: kv.Key, Value: kv.Data.Value}})
 			continue
 		}
 
 		vSize := len(kv.Data.Value)
 		meta := &marshal.IndexerMeta{
 			SSTid:       sst.Id,
-			ValueOffset: fileCurrentOffset,
+			ValueOffset: vlogCurOffset,
 			ValueSize:   int64(vSize),
 			ValueCrc32:  crc32.ChecksumIEEE(kv.Data.Value),
 			TimeStamp:   kv.Data.TimeStamp,
 		}
+		//small value store in indexer
+		if vSize <= smallValue {
+			meta.Value = kv.Data.Value
+			continue
+		}
 
-		//todo 小value直接存储在叶子节点中
-		//if vSize <= smallValue {
-		//	meta.Value = kv.Data.Value
-		//}
-
-		ops = append(ops, &Op{op: Insert, kv: marshal.BytesKV{Key: kv.Key, Value: marshal.EncodeIndexMeta(meta)}})
-		fileCurrentOffset += int64(len(kv.Data.Value))
+		ops = append(ops, Op{op: Insert, kv: marshal.BytesKV{Key: kv.Key, Value: marshal.EncodeIndexMeta(meta)}})
+		vlogCurOffset += int64(len(kv.Data.Value))
 		if _, err = buf.Write(kv.Data.Value); err != nil {
 			return
 		}
 	}
 
 	if tx, err = p.indexer.BeginTx(); err != nil {
-		log.Errorf("start index transaction failed", err)
-		return
-	}
-	if err = p.indexer.ExecuteOps(tx, ops); err != nil {
-		tx.Rollback()
-		return
-	}
-	if err = sst.Write(buf.Bytes()); err != nil {
-		tx.Rollback()
-		sst.Remove()
-		return
-	}
-	if err = tx.Commit(); err != nil {
-		tx.Rollback()
-		sst.Remove()
 		return
 	}
 
-	sst.Rename(createSSTFileName(p.dirPath, NewSST, None))
+	if err = p.indexer.ExecuteOps(tx, ops); err != nil {
+		return
+	}
+
+	if err = sst.Write(buf.Bytes()); err != nil {
+		return
+	}
+
+	if err = tx.Commit(); err != nil {
+		return
+	}
+
+	if err = sst.Rename(createSSTFilePath(p.dirPath, NewSST, None)); err != nil {
+		return
+	}
 	p.SSTMap[sst.Id] = sst
 }
 
 func (p *Partition) AutoCompaction() {
-	//todo compaction策略
 	p.Compaction()
 }
 
@@ -262,5 +209,24 @@ func (p *Partition) Compaction() {
 }
 
 func (p *Partition) Remove() error {
-	return os.RemoveAll(p.dirPath)
+	for _, sst := range p.SSTMap {
+		if err := sst.Remove(); err != nil {
+			return err
+		}
+	}
+	return p.indexer.Remove()
+}
+
+func (p *Partition) Close() error {
+	for _, sst := range p.SSTMap {
+		if err := sst.Close(); err != nil {
+			return err
+		}
+	}
+	for sst := range p.pipeSST {
+		if err := sst.Remove(); err != nil {
+			return err
+		}
+	}
+	return p.indexer.Close()
 }

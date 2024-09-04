@@ -58,7 +58,7 @@ func TestEncodeDecodeData(t *testing.T) {
 func TestEncodeDecodeKV(t *testing.T) {
 	kv := &KV{
 		ApplySig: 789,
-		KeySize:  len([]byte("key")),
+		KeySize:  uint32(len([]byte("key"))),
 		Key:      []byte("key"),
 		Data: &Data{
 			Index:     123,
