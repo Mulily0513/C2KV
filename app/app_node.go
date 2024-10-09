@@ -159,7 +159,7 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 
 	for _, id := range kvUUIDs {
 		close(an.monitorKV[string(id)])
-		delete(an.monitorKV, string(jd))
+		delete(an.monitorKV, string(id))
 	}
 
 	return

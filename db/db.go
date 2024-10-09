@@ -392,15 +392,23 @@ func (db *C2KV) AppliedIndex() uint64 {
 }
 
 func (db *C2KV) flushAllMemtable() {
-
+	//todo
 }
 
 func (db *C2KV) Close() {
 	db.flushAllMemtable()
-	db.wal.Close()
-	db.valueLog.Close()
+
+	if err := db.wal.Close(); err != nil {
+		log.Errorf("close wal failed %v", err)
+	}
+
+	if err := db.valueLog.Close(); err != nil {
+		log.Errorf("close vlog failed %v", err)
+	}
 }
 
 func (db *C2KV) Remove() {
-	os.RemoveAll(db.dbPath)
+	if err := os.RemoveAll(db.dbPath); err != nil {
+		log.Errorf("remove db failed %v", err)
+	}
 }
