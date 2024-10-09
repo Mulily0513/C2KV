@@ -2,6 +2,7 @@ package wal
 
 import (
 	"fmt"
+	"github.com/Mulily0513/C2KV/db/mocks"
 	"github.com/Mulily0513/C2KV/pb"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -10,34 +11,64 @@ import (
 )
 
 func TestSegmentFile_newSegmentFile(t *testing.T) {
-	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
+	segment := newSegmentFile(mocks.TestWALCfg1Size)
 	assert.EqualValues(t, segment.Index, defaultMinLogIndex)
 	assert.EqualValues(t, segment.blocksOffset, 0)
-	segment.close()
-	segment.remove()
+	assert.EqualValues(t, segment.WalDirPath, mocks.TestWALCfg1Size.WalDirPath)
+
+	assert.NotEqual(t, segment.Fd, nil)
+	assert.NotEqual(t, segment.blockPool, nil)
+	_ = segment.close()
+	_ = segment.remove()
 }
 
 func TestSegmentFile_Write(t *testing.T) {
-	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
-
-	//todo 测试不同分支的write
+	//todo
 	// 1、写入<block4
 	// 2、写入>block4，<block8
 	// 3、写入大于block8
 	// 4、连续写入<block4的数据
 	// 5、连续写入>block4，<block8的数据
 	// 6、连续写入大于block8的数据
-	data, bytesCount := MarshalWALEntries(Entries5)
-	segment.write(data, bytesCount, Entries5[0].Index)
-
-	assert.EqualValues(t, len(segment.blocks), bytesCount+segment.BlocksRemainSize)
-	assert.EqualValues(t, bytesCount, segment.blocksOffset)
+	tests := []struct {
+		name string
+		ents []*pb.Entry
+	}{
+		{"<block4",
+			mocks.Entries_20_250_3KB,
+		},
+		{">block4, <block8",
+			mocks.Entries5,
+		},
+		{">block8",
+			mocks.Entries5,
+		},
+		{" series <block4",
+			mocks.Entries5,
+		},
+		{" series >block4,<block8",
+			mocks.Entries5,
+		},
+		{" series >block4,<block8",
+			mocks.Entries5,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			segment := newSegmentFile(mocks.TestWALCfg1Size)
+			data, bytesCount := mocks.MarshalWALEntries(tt.ents)
+			if err := segment.write(data, bytesCount, tt.ents[0].Index); err != nil {
+				t.Error(err)
+			}
+			assert.EqualValues(t, len(segment.blocks), bytesCount+segment.BlocksRemainSize)
+			assert.EqualValues(t, bytesCount, segment.blocksOffset)
+		})
+	}
 }
 
-// todo 在不同的写入场景下测试read
 func TestSegmentReader_Block4(t *testing.T) {
-	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
-	MockSegmentWrite(Entries20, segment)
+	segment := newSegmentFile(mocks.TestWALCfg1Size)
+	MockSegmentWrite(mocks.Entries_20_250_3KB, segment)
 	reader := NewSegmentReader(segment)
 	ents := make([]*pb.Entry, 0)
 	assert.EqualValues(t, segment.blocks, reader.blocks)
@@ -53,13 +84,12 @@ func TestSegmentReader_Block4(t *testing.T) {
 		reader.Next(header.EntrySize)
 		ents = append(ents, entry)
 	}
-	assert.EqualValues(t, Entries20, ents)
+	assert.EqualValues(t, mocks.Entries_20_250_3KB, ents)
 }
 
-// 写入的数据量大于block8
 func TestSegmentReader_Blocks(t *testing.T) {
-	segment := newSegmentFile(TestWALCfg1Size.WalDirPath, TestWALCfg1Size.SegmentSize)
-	MockSegmentWrite(Entries61MB, segment)
+	segment := newSegmentFile(mocks.TestWALCfg1Size)
+	MockSegmentWrite(mocks.Entries61MB, segment)
 	reader := NewSegmentReader(segment)
 	ents := make([]*pb.Entry, 0)
 	//确保读出的数据正确
@@ -75,7 +105,7 @@ func TestSegmentReader_Blocks(t *testing.T) {
 		reader.Next(header.EntrySize)
 		ents = append(ents, entry)
 	}
-	assert.EqualValues(t, Entries61MB, ents)
+	assert.EqualValues(t, mocks.Entries61MB, ents)
 }
 
 func TestOrderedSegmentList(t *testing.T) {
@@ -116,9 +146,9 @@ func TestOrderedSegmentList(t *testing.T) {
 	}
 }
 
-func TestOpenVlogStateSegment(t *testing.T) {
+func TestVlogStateSegment(t *testing.T) {
 	//test encode
-	vlogSeg, err := OpenVlogStateSegment(filepath.Join(TestWALCfg1Size.WalDirPath, uuid.New().String()+VlogSuffix))
+	vlogSeg, err := OpenVlogStateSegment(filepath.Join(mocks.TestWALCfg1Size.WalDirPath, uuid.New().String()+VlogSuffix))
 	if err != nil {
 		panic(err)
 	}
@@ -138,7 +168,7 @@ func TestOpenVlogStateSegment(t *testing.T) {
 
 func TestWALStateSegment(t *testing.T) {
 	//test encode
-	walSeg, err := OpenWALStateSegment(filepath.Join(TestWALCfg1Size.WalDirPath, uuid.New().String()+WALSuffix))
+	walSeg, err := OpenWalStateSegment(filepath.Join(mocks.TestWALCfg1Size.WalDirPath, uuid.New().String()+WALSuffix))
 	if err != nil {
 		panic(err)
 	}
@@ -148,7 +178,7 @@ func TestWALStateSegment(t *testing.T) {
 	//test  decode
 	fpath := walSeg.fd.Name()
 	walSeg.Close()
-	walSeg, err = OpenWALStateSegment(fpath)
+	walSeg, err = OpenWalStateSegment(fpath)
 	if err != nil {
 		panic(err)
 	}
@@ -158,7 +188,7 @@ func TestWALStateSegment(t *testing.T) {
 
 func TestRaftStateSegment(t *testing.T) {
 	//test encode
-	raftSeg, err := openRaftStateSegment(filepath.Join(TestWALCfg1Size.WalDirPath, uuid.New().String()+RaftSuffix))
+	raftSeg, err := openRaftStateSegment(filepath.Join(mocks.TestWALCfg1Size.WalDirPath, uuid.New().String()+RaftSuffix))
 	if err != nil {
 		panic(err)
 	}

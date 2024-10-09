@@ -2,6 +2,7 @@ package marshal
 
 import (
 	"github.com/Mulily0513/C2KV/pb"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
@@ -57,7 +58,7 @@ func TestEncodeDecodeData(t *testing.T) {
 
 func TestEncodeDecodeKV(t *testing.T) {
 	kv := &KV{
-		ApplySig: 789,
+		ApplySig: []byte(uuid.New().String()),
 		KeySize:  uint32(len([]byte("key"))),
 		Key:      []byte("key"),
 		Data: &Data{

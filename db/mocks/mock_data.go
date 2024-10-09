@@ -2,37 +2,28 @@ package mocks
 
 import (
 	"bytes"
-	"fmt"
-	"github.com/Mulily0513/C2KV/config"
 	"github.com/Mulily0513/C2KV/db/marshal"
 	"github.com/Mulily0513/C2KV/pb"
 	"github.com/google/uuid"
 	"math/rand"
 	"os"
-	"path"
 	"sort"
 	"time"
 )
 
 const CreatKVsFmt = "create KVs nums %d, data valLen %d, bytes count %s"
-const PartitionFormat = "PARTITION_%d"
 const MinIndex = 1
 
 var CurDirPath, _ = os.Getwd()
-var DBPath = path.Join("./", "C2KV")
-var PartitionDir1 = path.Join(CurDirPath, fmt.Sprintf(PartitionFormat, 1))
-var PartitionDir2 = path.Join(CurDirPath, fmt.Sprintf(PartitionFormat, 2))
-var PartitionDir3 = path.Join(CurDirPath, fmt.Sprintf(PartitionFormat, 3))
 
-var VlogCfg = config.ValueLogConfig{ValueLogDir: ValueLogPath, PartitionNums: 3}
-
+// kvs
 var KVs_67MB = CreateSortKVs(250000, 250, true)
 var KVs_27KBNoDelOp = CreateSortKVs(100, 250, false)
 var KVs_67MBNoDelOp = CreateSortKVs(250000, 250, true)
 var KVs27KBNoDelOp = CreateSortKVs(100, 250, false)
 var OneKV = CreateSortKVs(1, 250, false)[0]
-var SingleKV_DELTE = CreateSingleKV(250, false)
-var SingleKV = CreateSingleKV(250, false)
+var SingleKV_DELTE = CreateSingleKV(250, false, 1)
+var SingleKV = CreateSingleKV(250, false, 1)
 var KVS_RAND_27KB_HASDEL_UQKey = CreateRandKVs(100, 250, true)
 var KVS_SORT_27KB_NODEL_UQKey = CreateSortKVs(100, 250, false)
 var KVS_SORT_27KB_HASDEL_UQKey = CreateSortKVs(100, 250, false)
@@ -53,13 +44,13 @@ func genRanValByte(valLen int) []byte {
 	return data
 }
 
-func CreateSingleKV(valLen int, Delete bool) *marshal.KV {
+func CreateSingleKV(valLen int, Delete bool, index uint64) *marshal.KV {
 	key := genUniqueKey()
 	kv := &marshal.KV{
 		Key:     key,
 		KeySize: uint32(len(key)),
 		Data: &marshal.Data{
-			Index:     uint64(1),
+			Index:     index,
 			TimeStamp: time.Now().Unix(),
 			Type:      marshal.TypeInsert,
 			Value:     genRanValByte(valLen),
@@ -123,7 +114,7 @@ func CreateApplyKVs(num int, valLen int, hasDelete bool) (kvs []*marshal.KV, ent
 	for i := 1; i <= num; i++ {
 		key := genUniqueKey()
 		kv := &marshal.KV{
-			ApplySig: 0,
+			ApplySig: []byte(uuid.New().String()),
 			Key:      key,
 			KeySize:  uint32(len(key)),
 			Data: &marshal.Data{
@@ -166,24 +157,11 @@ func marshalKVs(kvs []*marshal.KV) (byteCount int) {
 	return
 }
 
-func ConvertSize(size int) string {
-	units := []string{"B", "KB", "MB", "GB"}
-	if size == 0 {
-		return "0" + units[0]
-	}
-	i := 0
-	for size >= 1024 {
-		size /= 1024
-		i++
-	}
-	return fmt.Sprintf("%.f", float64(size)) + units[i]
-}
-
 func CreateKVs(num int, length int, hasDelete bool) []*marshal.KV {
 	kvs := make([]*marshal.KV, 0)
 	for i := 1; i < num; i++ {
 		kv := &marshal.KV{
-			ApplySig: 1,
+			ApplySig: []byte(uuid.New().String()),
 			Key:      generateByte(5),
 			Data: &marshal.Data{
 				Index:     uint64(i),
@@ -214,4 +192,93 @@ func CreateRangeRandomIndex(min, max int) int {
 	rand.Seed(time.Now().UnixNano()) // 设置随机数种子
 	randomNumber := rand.Intn(max-min+1) + min
 	return randomNumber
+}
+
+/*
+/mock entry
+*/
+
+const CreatEntriesFmt = "create entries nums %d, data length %d, bytes count %s"
+
+var Entries61MB = CreateEntries(50000, 250)
+var Entries133MB = CreateEntries(500000, 250)
+var Entries1MB = CreateEntries(5000, 250)
+var Entries5 = CreateEntries(5, 250)
+var Entries_20_250_3KB = CreateEntries(20, 250)
+var ENTS_5GROUP_5000NUMS = CreateEntriesSlice(5, 5000, 250)
+
+func CreateEntries(num int, valLen int) []*pb.Entry {
+	entries := make([]*pb.Entry, num)
+	for i := 1; i <= num; i++ {
+		entry := &pb.Entry{
+			Term:  uint64(i),
+			Index: uint64(i),
+			Type:  pb.EntryNormal,
+			Data:  genRandomKVBytes(valLen, uint64(i)),
+		}
+		entries[i-1] = entry
+	}
+	return entries
+}
+
+func CreateEntriesSlice(groupNum, num int, length int) [][]*pb.Entry {
+	groupEntries := make([][]*pb.Entry, groupNum)
+	entries := make([]*pb.Entry, num*groupNum)
+	for i := 0; i < num*groupNum; i++ {
+		entry := &pb.Entry{
+			Term:  uint64(i + 1),
+			Index: uint64(i + 1),
+			Type:  pb.EntryNormal,
+			Data:  genRandomKVBytes(length, 1),
+		}
+		entries[i] = entry
+	}
+
+	for i := 0; i < groupNum; i++ {
+		groupEntries[i] = entries[i*num : (i+1)*num]
+	}
+	return groupEntries
+}
+
+func SplitEntries(interval int, entries []*pb.Entry) [][]*pb.Entry {
+	totalEntries := make([][]*pb.Entry, 0)
+	count := 0
+	subEntries := make([]*pb.Entry, 0)
+	for _, e := range entries {
+		if count <= interval {
+			subEntries = append(subEntries, e)
+			count++
+		} else {
+			totalEntries = append(totalEntries, subEntries)
+			subEntries = make([]*pb.Entry, 0)
+			count = 0
+		}
+	}
+	return totalEntries
+}
+
+func genRandomKVBytes(length int, index uint64) []byte {
+	return marshal.EncodeKV(CreateSingleKV(length, false, index))
+}
+
+func MarshalWALEntries(entries1 []*pb.Entry) (data []byte, bytesCount int) {
+	data = make([]byte, 0)
+	for _, e := range entries1 {
+		wEntBytes, n := marshal.EncodeWALEntry(e)
+		data = append(data, wEntBytes...)
+		bytesCount += n
+	}
+	return
+}
+
+func MockApplyData(num int) ([]*pb.Entry, []*marshal.KV) {
+	kvs := make([]*marshal.KV, 0)
+	ents := make([]*pb.Entry, 0)
+	for i := 1; i <= num; i++ {
+		kv := CreateSingleKV(250, false, uint64(i))
+		ent := &pb.Entry{1, uint64(i), pb.EntryNormal, marshal.EncodeKV(kv)}
+		kvs = append(kvs, kv)
+		ents = append(ents, ent)
+	}
+	return ents, kvs
 }

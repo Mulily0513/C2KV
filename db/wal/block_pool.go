@@ -1,7 +1,7 @@
 package wal
 
 import (
-	"log"
+	"github.com/Mulily0513/C2KV/log"
 	"unsafe"
 )
 
@@ -21,12 +21,12 @@ type blockPool struct {
 
 func newBlockPool() (bp *blockPool) {
 	bp = new(blockPool)
-	bp.block4 = alignedblock(num4)
-	bp.block8 = alignedblock(num8)
+	bp.block4 = alignedCustomBlock(num4)
+	bp.block8 = alignedCustomBlock(num8)
 	return bp
 }
 
-// Alignedblock  alloc block4 and block8, if not enough, alloc custom block
+// AlignedBlock  alloc block4 and block8, if not enough, alloc custom block
 func (b *blockPool) alignedBlock(n int) ([]byte, int) {
 	if n < block4 {
 		return b.block4, 4
@@ -42,7 +42,7 @@ func (b *blockPool) alignedBlock(n int) ([]byte, int) {
 		nums++
 	}
 
-	return alignedblock(nums), nums
+	return alignedCustomBlock(nums), nums
 }
 
 func (b *blockPool) recycleBlock(block []byte) {
@@ -60,7 +60,7 @@ func (b *blockPool) recycleBlock(block []byte) {
 	}
 }
 
-func alignedblock(blockNums int) []byte {
+func alignedCustomBlock(blockNums int) []byte {
 	block := make([]byte, block4096*blockNums)
 	if isAligned(block) {
 		return block
@@ -76,7 +76,7 @@ func alignedblock(blockNums int) []byte {
 	block = block[offset : offset+block4096]
 
 	if !isAligned(block) {
-		log.Fatal("Failed to align block")
+		log.Panic("Failed to align block")
 	}
 	return block
 }

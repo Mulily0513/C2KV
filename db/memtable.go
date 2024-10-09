@@ -114,40 +114,59 @@ func (mt *memTable) Size() int64 {
 	return int64(mt.skl.Size())
 }
 
+type QueueNode struct {
+	prev  *QueueNode
+	next  *QueueNode
+	value *memTable
+}
+
 type memTableQueue struct {
-	tables   []*memTable
+	front    *QueueNode
+	rear     *QueueNode
 	size     int
 	capacity int
 }
 
-// todo 用链表实现memtable 队列
 func newMemTableQueue(capacity int) *memTableQueue {
-	return &memTableQueue{
-		tables:   make([]*memTable, capacity),
+	mq := &memTableQueue{
+		front:    new(QueueNode),
+		rear:     new(QueueNode),
 		size:     0,
 		capacity: capacity,
 	}
+	mq.front.next = mq.rear
+	mq.rear.prev = mq.front
+	return mq
 }
 
 func (q *memTableQueue) Enqueue(item *memTable) {
-	if q.size == q.capacity {
-		//todo 缓冲，memtable队列短暂扩容后此时应该不再接受写入，需要将immtable刷盘，等待memTable的数量恢复到和配置一样才能允许写入
-		newCapacity := q.capacity * 2
-		newtables := make([]*memTable, newCapacity)
-		copy(newtables, q.tables)
-		q.tables = newtables
-		q.capacity = newCapacity
-	}
-	q.tables[q.size] = item
+	newNode := &QueueNode{value: item}
+	q.rear.prev.next = newNode
+	newNode.prev = q.rear.prev
+	newNode.next = q.rear
+	q.rear.prev = newNode
 	q.size++
 }
 
 func (q *memTableQueue) Dequeue() *memTable {
 	if q.size == 0 {
-		panic("Queue is empty")
+		return nil
 	}
-	item := q.tables[0]
-	copy(q.tables, q.tables[1:])
+	node := q.front.next
+	q.front.next.next.prev = q.front
+	q.front.next = q.front.next.next
+	node.prev = nil
+	node.next = nil
 	q.size--
-	return item
+	return node.value
+}
+
+func (q *memTableQueue) All() []*memTable {
+	tables := make([]*memTable, 0)
+	current := q.front.next
+	for current != nil {
+		tables = append(tables, current.value)
+		current = current.next
+	}
+	return tables
 }

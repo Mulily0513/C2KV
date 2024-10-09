@@ -180,7 +180,7 @@ type node struct {
 	// Multiple parts of the value are encoded as a single uint64 so that it
 	// can be atomically loaded and stored:
 	//   value offset: uint32 (bits 0-31)
-	//   value size  : uint16 (bits 32-63)
+	//   value size  : uint32 (bits 32-63)
 	value uint64
 
 	// Most nodes do not need to use the full height of the tower, since the
@@ -238,23 +238,23 @@ func (s *Skiplist) findSpliceForLevel(key []byte, level int, start *node) (prev,
 		next = s.getNext(prev, level)
 		nextKey := next.getKey(s.arena)
 
-		// 到达尾节点结束循环
+		// Reach the tail node to end the loop.
 		if nextKey == nil {
 			break
 		}
 
 		cmp := bytes.Compare(key, nextKey)
-		// 找到key结束循环
+		// Find the key and end the loop.
 		if cmp == 0 {
 			found = true
 			break
 		}
 
-		// key<节点key，进入下一层，since prev.key < key < next.key.
+		// key is less than the node key. Enter the next lower level since prev.key is less than key and key is less than next.key.
 		if cmp < 0 {
 			break
 		}
-		// 找到下一个key
+		// Find the next key
 		prev = next
 	}
 	return

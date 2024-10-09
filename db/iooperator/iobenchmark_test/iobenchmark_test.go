@@ -11,29 +11,28 @@ import (
 )
 
 func BenchmarkDirectIO(b *testing.B) {
-	b.ResetTimer() // 重置计时器，排除初始化代码的影响
+	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		DirectIO(GetTestData())
 	}
 
-	b.StopTimer() // 停止计时器，排除清理代码的影响
-
+	b.StopTimer()
 	// 报告基准测试结果
-	b.ReportMetric(float64(b.N), "iterations") // 报告迭代次数
+	b.ReportMetric(float64(b.N), "iterations")
 }
 
 func BenchmarkBufferdIO(b *testing.B) {
-	b.ResetTimer() // 重置计时器，排除初始化代码的影响
+	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		BufferdIO(GetTestData())
 	}
 
-	b.StopTimer() // 停止计时器，排除清理代码的影响
+	b.StopTimer()
 
 	// 报告基准测试结果
-	b.ReportMetric(float64(b.N), "iterations") // 报告迭代次数
+	b.ReportMetric(float64(b.N), "iterations")
 }
 
 func DirectIO(testData []byte) {

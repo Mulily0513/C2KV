@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func MockData(block []byte) {
+func mockData(block []byte) {
 	for i := 0; i < len(block); i++ {
 		block[i] = 1
 	}
@@ -34,7 +34,7 @@ func TestBlockPool_RecycleBlock(t *testing.T) {
 	blockPool := newBlockPool()
 	block, _ := blockPool.alignedBlock(1)
 	assert.Equal(t, isAligned(block), true)
-	MockData(block)
+	mockData(block)
 	blockPool.recycleBlock(block)
 	newBlock, _ := blockPool.alignedBlock(1)
 	assert.Equal(t, &newBlock[0], &block[0])

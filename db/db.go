@@ -9,6 +9,7 @@ import (
 	"github.com/Mulily0513/C2KV/log"
 	"github.com/Mulily0513/C2KV/pb"
 	"github.com/Mulily0513/C2KV/utils"
+	"io"
 	"os"
 	"sync"
 )
@@ -40,6 +41,8 @@ type Storage interface {
 }
 
 type C2KV struct {
+	dbPath string
+
 	activeMem *memTable
 
 	immtableQ *memTableQueue
@@ -77,6 +80,7 @@ func dbCfgCheck(dbCfg *config.DBConfig) {
 func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 	dbCfgCheck(dbCfg)
 	C2 = new(C2KV)
+	C2.dbPath = dbCfg.DBPath
 	memFlushC := make(chan *memTable, dbCfg.MemConfig.MemTableNums)
 	C2.memTablePipe = make(chan *memTable, dbCfg.MemConfig.MemTablePipeSize)
 	C2.immtableQ = newMemTableQueue(dbCfg.MemConfig.MemTableNums)
@@ -107,7 +111,7 @@ func OpenKVStorage(dbCfg *config.DBConfig) (C2 *C2KV) {
 
 func (db *C2KV) restoreImMemTable() {
 	persistIndex := db.wal.VlogStateSegment.PersistIndex
-	appliedIndex := db.wal.WALStateSegment.AppliedIndex
+	appliedIndex := db.wal.WalStateSegment.AppliedIndex
 	Node := db.wal.OrderSegmentList.Head
 	kvC := make(chan *marshal.KV, 1000)
 	var bytesCount int64
@@ -129,12 +133,10 @@ func (db *C2KV) restoreImMemTable() {
 			reader := wal.NewSegmentReader(Seg)
 			for {
 				header, err := reader.ReadHeader()
-				if err != nil {
-					if err.Error() == "EOF" {
-						break
-					}
-					log.Panicf("read header failed", err)
+				if err == io.EOF {
+					break
 				}
+
 				if header.Index < persistIndex {
 					reader.Next(header.EntrySize)
 					continue
@@ -145,8 +147,9 @@ func (db *C2KV) restoreImMemTable() {
 
 				ent, err := reader.ReadEntry(header)
 				if err != nil {
-					log.Panicf("read entry failed", err)
+					log.Panicf("read entry failed %v ", err)
 				}
+
 				kv := marshal.DecodeKV(ent.Data)
 				kvC <- kv
 				reader.Next(header.EntrySize)
@@ -167,7 +170,7 @@ func (db *C2KV) restoreImMemTable() {
 				return
 			}
 		case err := <-errC:
-			log.Panicf("read kv failed", err)
+			log.Panicf("read kv failed %v", err)
 			return
 		case <-signalC:
 			for kv := range kvC {
@@ -184,7 +187,7 @@ func (db *C2KV) restoreImMemTable() {
 }
 
 func (db *C2KV) restoreMemEntries() {
-	appliedIndex := db.wal.WALStateSegment.AppliedIndex
+	appliedIndex := db.wal.WalStateSegment.AppliedIndex
 	committedIndex := db.wal.RaftStateSegment.RaftState.Commit
 	Node := db.wal.OrderSegmentList.Head
 	for Node != nil {
@@ -231,8 +234,6 @@ ExitLoop:
 	return
 }
 
-// kv operate
-
 func (db *C2KV) Get(key []byte) (kv *marshal.KV, err error) {
 	kv, flag := db.activeMem.Get(key)
 	if !flag {
@@ -256,7 +257,7 @@ func (db *C2KV) Scan(lowKey []byte, highKey []byte) ([]*marshal.KV, error) {
 	}()
 
 	var medbKvs []*marshal.KV
-	for _, mem := range db.immtableQ.tables {
+	for _, mem := range db.immtableQ.All() {
 		memKvs, err := mem.Scan(lowKey, highKey)
 		if err != nil {
 			return nil, err
@@ -292,7 +293,7 @@ func (db *C2KV) Apply(kvs []*marshal.KV) (err error) {
 	if err = db.activeMem.ConcurrentPut(kvBytes); err != nil {
 		return err
 	}
-	if err = db.wal.WALStateSegment.Save(lastIndex); err != nil {
+	if err = db.wal.WalStateSegment.Save(lastIndex); err != nil {
 		return err
 	}
 
@@ -313,7 +314,6 @@ func (db *C2KV) maybeRotateMemTable(bytesCount int64) {
 
 func (db *C2KV) PersistHardState(st pb.HardState, wg *sync.WaitGroup) {
 	defer wg.Done()
-
 	if err := db.wal.RaftStateSegment.Save(st); err != nil {
 		log.Panicf("save raft hardstate failed")
 	}
@@ -366,13 +366,6 @@ func (db *C2KV) Term(i uint64) (uint64, error) {
 	return db.entries[i-offset].Term, nil
 }
 
-func (db *C2KV) AppliedIndex() uint64 {
-	if db.FirstIndex() == 0 {
-		return 0
-	}
-	return db.FirstIndex() - 1
-}
-
 func (db *C2KV) FirstIndex() uint64 {
 	if len(db.entries) == 0 {
 		return 0
@@ -391,10 +384,23 @@ func (db *C2KV) lastIndex() uint64 {
 	return db.entries[uint64(len(db.entries))-1].Index
 }
 
-func (db *C2KV) Close() {
+func (db *C2KV) AppliedIndex() uint64 {
+	if db.FirstIndex() > 1 {
+		return db.FirstIndex() - 1
+	}
+	return 0
+}
+
+func (db *C2KV) flushAllMemtable() {
 
 }
 
-func (db *C2KV) Remove() {
+func (db *C2KV) Close() {
+	db.flushAllMemtable()
+	db.wal.Close()
+	db.valueLog.Close()
+}
 
+func (db *C2KV) Remove() {
+	os.RemoveAll(db.dbPath)
 }

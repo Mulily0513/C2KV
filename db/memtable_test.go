@@ -44,7 +44,7 @@ func TestMemTable_All(t *testing.T) {
 	allKvs := mem.All()
 	verifyKvs := make([]marshal.KV, 0)
 	for _, kv := range allKvs {
-		verifyKvs = append(verifyKvs, marshal.KV{Key: kv.Key, KeySize: len(kv.Key), Data: marshal.DecodeData(kv.Value)})
+		verifyKvs = append(verifyKvs, marshal.KV{Key: kv.Key, KeySize: uint32(len(kv.Key)), Data: marshal.DecodeData(kv.Value)})
 	}
 
 	reflect.DeepEqual(kvs, allKvs)

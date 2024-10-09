@@ -18,7 +18,7 @@ type AppNode struct {
 	localId    uint64
 	localIAddr string
 	peers      []config.Peer
-	monitorKV  map[uint64]chan struct{}
+	monitorKV  map[string]chan struct{}
 
 	raftNode  raft.Node
 	transport transport.Transporter
@@ -33,7 +33,7 @@ func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *
 	proposeC := make(chan []byte, raftConfig.RequestTimeOut)
 	confChangeC := make(chan pb.ConfChange)
 	kvServiceStopC := make(chan struct{})
-	monitorKV := make(map[uint64]chan struct{})
+	monitorKV := make(map[string]chan struct{})
 
 	an := &AppNode{
 		localId:        localInfo.LocalId,
@@ -94,7 +94,7 @@ func (an *AppNode) serveRaftNode() {
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
 			wg := new(sync.WaitGroup)
-			log.Infof("ready:%+v", rd)
+			log.Debugf("ready:%+v", rd)
 			if !raft.IsEmptyHardState(rd.HardState) {
 				wg.Add(1)
 				go an.kvStorage.PersistHardState(rd.HardState, wg)
@@ -115,7 +115,6 @@ func (an *AppNode) serveRaftNode() {
 			}
 
 			wg.Wait()
-			//next turn
 			an.raftNode.Advance()
 		}
 	}
@@ -146,11 +145,11 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 
 	var kv *marshal.KV
 	kvs := make([]*marshal.KV, len(entries))
-	kvIds := make([]uint64, 0)
+	kvUUIDs := make([][]byte, 0)
 	for _, entry := range entries {
 		kv = marshal.DecodeKV(entry.Data)
 		kvs = append(kvs, kv)
-		kvIds = append(kvIds, kv.ApplySig)
+		kvUUIDs = append(kvUUIDs, kv.ApplySig)
 	}
 
 	if err := an.kvStorage.Apply(kvs); err != nil {
@@ -158,9 +157,9 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 		return
 	}
 
-	for _, id := range kvIds {
-		close(an.monitorKV[id])
-		delete(an.monitorKV, id)
+	for _, id := range kvUUIDs {
+		close(an.monitorKV[string(id)])
+		delete(an.monitorKV, string(jd))
 	}
 
 	return

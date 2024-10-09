@@ -16,13 +16,13 @@ import (
 type KvService struct {
 	Storage    db.Storage
 	proposeC   chan<- []byte
-	monitorKV  map[uint64]chan struct{}
+	monitorKV  map[string]chan struct{}
 	ReqTimeout time.Duration
 	RaftNode   raft.Node
 }
 
 func StartKVAPIService(proposeC chan<- []byte, requestTimeOut int, kvStorage db.Storage,
-	monitorKV map[uint64]chan struct{}, localEAddr string, kvServiceStopC chan struct{}, raftNode raft.Node) {
+	monitorKV map[string]chan struct{}, localEAddr string, kvServiceStopC chan struct{}, raftNode raft.Node) {
 	s := &KvService{
 		Storage:    kvStorage,
 		proposeC:   proposeC,
@@ -52,7 +52,7 @@ func ServeGRPCKVAPI(kvService *KvService, localEAddr string) {
 
 func (s *KvService) Propose(key, val []byte, delete bool) error {
 	timeOutC := time.NewTimer(s.ReqTimeout)
-	uid := uint64(uuid.New().ID())
+	uid := []byte(uuid.New().String())
 	kv := new(marshal.KV)
 	kv.Key = key
 	kv.Data.Value = val
@@ -64,9 +64,9 @@ func (s *KvService) Propose(key, val []byte, delete bool) error {
 	buf := marshal.EncodeKV(kv)
 	s.proposeC <- buf
 
-	//监听该kv，当该kv被applied时返回客户端
+	// monitor this key-value. When this key-value is applied, this request can be returned to the client.
 	sig := make(chan struct{})
-	s.monitorKV[uid] = sig
+	s.monitorKV[string(uid)] = sig
 
 	select {
 	case <-sig:

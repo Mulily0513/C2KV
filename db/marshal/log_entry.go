@@ -18,7 +18,7 @@ const (
 	TypeInsert    = 2
 	TimeStampSize = 8
 	TypeSize      = 1
-	ApplySigSize  = 8
+	ApplySigSize  = 36
 	KeySize       = 4
 )
 
@@ -28,17 +28,17 @@ type BytesKV struct {
 }
 
 type KV struct {
-	ApplySig uint64
+	ApplySig []byte //16 bytes
 	KeySize  uint32
 	Key      []byte
-	Data     *Data
+	Data     *Data //Data needs to be serialized as a whole and written into the skip list.
 }
 
 func EncodeKV(kv *KV) []byte {
 	dataBytes := EncodeData(kv.Data) // Serialize Data struct
 	keyLen := len(kv.Key)
 	buf := make([]byte, ApplySigSize+KeySize+keyLen+len(dataBytes))
-	binary.LittleEndian.PutUint64(buf[:ApplySigSize], kv.ApplySig)
+	copy(buf[:ApplySigSize], kv.ApplySig)
 	binary.LittleEndian.PutUint32(buf[ApplySigSize:ApplySigSize+KeySize], uint32(keyLen))
 	copy(buf[ApplySigSize+KeySize:], kv.Key)
 	copy(buf[ApplySigSize+KeySize+keyLen:], dataBytes)
@@ -47,7 +47,7 @@ func EncodeKV(kv *KV) []byte {
 
 func DecodeKV(data []byte) (kv *KV) {
 	kv = &KV{}
-	kv.ApplySig = binary.LittleEndian.Uint64(data[:ApplySigSize])
+	kv.ApplySig = data[:ApplySigSize]
 	kv.KeySize = binary.LittleEndian.Uint32(data[ApplySigSize : ApplySigSize+KeySize])
 	kv.Key = data[ApplySigSize+KeySize : ApplySigSize+KeySize+kv.KeySize]
 	kv.Data = DecodeData(data[ApplySigSize+KeySize+kv.KeySize:])

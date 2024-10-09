@@ -25,7 +25,7 @@ type MemConfig struct {
 type WalConfig struct {
 	WalDirPath string `yaml:"walDirPath" json:"walDirPath"`
 
-	//specifies the maximum size of each segment file in bytes. SegmentSize int64
+	//specifies the maximum size of each segment file in bytes, MB unit
 	SegmentSize int `yaml:"segmentSize"  json:"segmentSize"`
 }
 

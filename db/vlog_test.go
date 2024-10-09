@@ -23,8 +23,8 @@ func MockVlogFlush(mockKvs []*marshal.KV) *ValueLog {
 	kvs := MockMemTableWithData(mockKvs).All()
 	partitionRecords := make([][]*marshal.KV, 3)
 	mocks.CreateValueLogDirIfNotExist(mocks.ValueLogPath)
-	vlogCfg := mocks.VlogCfg
-	stateSegment, err := wal.OpenKVStateSegment(filepath.Join(mocks.CurFilePath, uuid.New().String()+wal.SegSuffix))
+	vlogCfg := mocks.TestVlogCfg
+	stateSegment, err := wal.OpenVlogStateSegment(filepath.Join(mocks.CurDirPath, uuid.New().String()+wal.SegSuffix))
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +36,7 @@ func MockVlogFlush(mockKvs []*marshal.KV) *ValueLog {
 		p := vlog.getKeyPartition(record.Key)
 		kv := new(marshal.KV)
 		kv.Key = record.Key
-		kv.KeySize = len(record.Key)
+		kv.KeySize = uint32(len(record.Key))
 		kv.Data = marshal.DecodeData(record.Value)
 		partitionRecords[p] = append(partitionRecords[p], kv)
 	}
@@ -60,7 +60,7 @@ func TestValueLog_Open(t *testing.T) {
 		PartitionNums: 3,
 	}
 	tableC := make(chan *memTable)
-	stateSegment, err := wal.OpenKVStateSegment(filepath.Join(mocks.CurFilePath, uuid.New().String()+wal.SegSuffix))
+	stateSegment, err := wal.OpenVlogStateSegment(filepath.Join(mocks.CurDirPath, uuid.New().String()+wal.SegSuffix))
 	if err != nil {
 		t.Errorf("OpenKVStateSegment returned error: %v", err)
 	}
@@ -75,11 +75,11 @@ func TestValueLog_ListenAndFlush(t *testing.T) {
 	mocks.CreateValueLogDirIfNotExist(mocks.ValueLogPath)
 
 	tableC := make(chan *memTable, 3)
-	stateSegment, err := wal.OpenKVStateSegment(filepath.Join(mocks.CurFilePath, uuid.New().String()+wal.SegSuffix))
+	stateSegment, err := wal.OpenVlogStateSegment(filepath.Join(mocks.CurDirPath, uuid.New().String()+wal.SegSuffix))
 	if err != nil {
 		t.Errorf("OpenKVStateSegment returned error: %v", err)
 	}
-	vlog := openValueLog(mocks.VlogCfg, tableC, stateSegment)
+	vlog := openValueLog(mocks.TestVlogCfg, tableC, stateSegment)
 
 	tableC <- MockMemTableWithData(mocks.KVS_RAND_35MB_HASDEL_UQKey)
 	vlog.listenAndFlush()

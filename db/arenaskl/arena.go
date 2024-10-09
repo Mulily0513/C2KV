@@ -27,9 +27,9 @@ import (
 type Align uint8
 
 const (
-	// Align1 align 0  不进行边界对齐
+	// Align1 align 0
 	Align1 = 0
-	// Align8 align 7  以8字节进行边界对齐
+	// Align8 align 7
 	Align8 = 7
 )
 
@@ -39,7 +39,6 @@ type Arena struct {
 	buf []byte
 }
 
-// NewArena 分配一段内存
 func NewArena(size uint32) *Arena {
 	// Don't store data at position 0 in order to reserve offset=0 as a kind
 	// of nil pointer.
@@ -87,9 +86,9 @@ func (a *Arena) Alloc(size, overflow uint32, align Align) (uint32, error) {
 		a.growBufSize(uint64(padded + overflow))
 	}
 
-	// ^对align取反再与操作，使地址对齐至8字节
 	// align8: 7 0000 0111 -> 1111 1000
 	// align1: 0 0000 0000 -> 1111 1111
+	// Align the address to an 8-byte boundary.
 	offset := (uint32(newSize) - padded + uint32(align)) & ^uint32(align)
 	return offset, nil
 }
@@ -116,7 +115,7 @@ func (a *Arena) GetPointerOffset(ptr unsafe.Pointer) uint32 {
 }
 
 func (a *Arena) growBufSize(growBy uint64) {
-	//todo 这样更新切片大小会不会过于频繁
+	//todo Will updating the slice size in this way be too frequent lead bad performance?
 	newBuf := make([]byte, uint64(len(a.buf))+growBy)
 	copy(newBuf, a.buf)
 	a.buf = newBuf

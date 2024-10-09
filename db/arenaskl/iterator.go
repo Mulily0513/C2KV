@@ -69,12 +69,10 @@ func (it *Iterator) Prev() {
 	it.setNode(prev, true)
 }
 
-// SeekToFirst 找到头节点的下一个节点，若为尾节点返回nil
 func (it *Iterator) SeekToFirst() {
 	it.setNode(it.list.getNext(it.list.head, 0), false)
 }
 
-// SeekToLast 找到尾节点的上一个节点，若为头节点返回nil
 func (it *Iterator) SeekToLast() {
 	it.setNode(it.list.getPrev(it.list.tail, 0), true)
 }
@@ -124,9 +122,9 @@ func (it *Iterator) put(key []byte, val []byte) error {
 	}
 
 	if it.list.testing {
-		//这段代码是为了更好地测试并发性能
-		//例如线程1执行到这段代码时，会调用runtime.Gosched()函数，让出执行权给线程2。线程2在这段时间内可能会修改splice的内容。然后，线程1重新获得执行权，继续执行后续的代码。
-		//通过添加延迟，可以增加线程2修改splice的机会，从而更好地模拟并发环境下的竞争条件。
+		// This code is for better testing of concurrent performance.
+		//For example, when coroutine 1 executes this code, it will call the runtime.Gosched() function to yield the execution right to coroutine 2. During this time, coroutine 2 may modify the content of splice. Then, coroutine 1 regains the execution right and continues to execute the subsequent code.
+		//By adding a delay, the chance for coroutine 2 to modify splice can be increased, thus better simulating the race condition in a concurrent environment.
 		runtime.Gosched()
 	}
 
@@ -143,7 +141,6 @@ func (it *Iterator) put(key []byte, val []byte) error {
 		prev := spl[i].prev
 		next := spl[i].next
 
-		//若在最高层是有可能发现prev是空的，该height是新建的一层
 		if prev == nil {
 			// New node increased the height of the skiplist, so assume that the
 			// new level has not yet been populated.

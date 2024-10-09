@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"github.com/Mulily0513/C2KV/db/mocks"
 	"github.com/Mulily0513/C2KV/pb"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -8,8 +9,8 @@ import (
 
 func TestWAL_Truncate(t *testing.T) {
 	truncateIndex := uint64(25000)
-	wal := NewWal(TestWALCfg1Size)
-	ents := SplitEntries(10000, Entries61MB)
+	wal := NewWal(mocks.TestWALCfg1Size)
+	ents := mocks.SplitEntries(10000, mocks.Entries61MB)
 	for _, e := range ents {
 		err := wal.Write(e)
 		if err != nil {
@@ -44,11 +45,33 @@ func TestWAL_Write(t *testing.T) {
 			t.Log(err)
 		}
 	}()
-	wal := NewWal(TestWALCfg64Size)
+	wal := NewWal(mocks.TestWALCfg64Size)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = wal.Write(Entries61MB)
+	err = wal.Write(mocks.Entries61MB)
 	err = wal.Close()
 	err = wal.Remove()
+}
+
+func readEntriesBySeg(segment *segment) (entries []*pb.Entry) {
+	reader := NewSegmentReader(segment)
+	for {
+		header, err := reader.ReadHeader()
+		if err != nil && err.Error() == "EOF" {
+			break
+		}
+		entry, err := reader.ReadEntry(header)
+		if err != nil {
+			println(err)
+		}
+		reader.Next(header.EntrySize)
+		entries = append(entries, entry)
+	}
+	return
+}
+
+func MockSegmentWrite(entries []*pb.Entry, segment *segment) {
+	data, bytesCount := mocks.MarshalWALEntries(entries)
+	segment.write(data, bytesCount, entries[0].Index)
 }

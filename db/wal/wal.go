@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const (
@@ -23,21 +24,23 @@ const (
 )
 
 type WAL struct {
-	walDirPath       string
-	segmentSize      int
-	activeSegment    *segment
+	walDirPath  string
+	segmentSize int
+
 	segmentPipe      chan *segment
+	activeSegment    *segment
 	OrderSegmentList *OrderedSegmentList
 	RaftStateSegment *RaftStateSegment
 	VlogStateSegment *VlogStateSegment
-	WALStateSegment  *WALStateSegment
+	WalStateSegment  *WalStateSegment
+	lock             *sync.Mutex
 }
 
 func NewWal(config config.WalConfig) *WAL {
 	segmentPipe := make(chan *segment, 1)
 	go func() {
 		for {
-			segmentPipe <- newSegmentFile(config.WalDirPath, config.SegmentSize)
+			segmentPipe <- newSegmentFile(config)
 		}
 	}()
 
@@ -45,7 +48,7 @@ func NewWal(config config.WalConfig) *WAL {
 		walDirPath:       config.WalDirPath,
 		segmentSize:      config.SegmentSize * MB,
 		OrderSegmentList: newOrderedSegmentList(),
-		activeSegment:    newSegmentFile(config.WalDirPath, config.SegmentSize),
+		activeSegment:    newSegmentFile(config),
 		segmentPipe:      segmentPipe,
 	}
 
@@ -71,8 +74,14 @@ func NewWal(config config.WalConfig) *WAL {
 		}
 
 		if strings.HasSuffix(fName, WALSuffix) {
-			if wal.WALStateSegment, err = OpenWALStateSegment(filepath.Join(wal.walDirPath, fName)); err != nil {
-				log.Panicf("open old kv state segment file error %v", err)
+			if wal.WalStateSegment, err = OpenWalStateSegment(filepath.Join(wal.walDirPath, fName)); err != nil {
+				log.Panicf("open old wal state segment file error %v", err)
+			}
+		}
+
+		if strings.HasSuffix(fName, VlogSuffix) {
+			if wal.VlogStateSegment, err = OpenVlogStateSegment(filepath.Join(wal.walDirPath, fName)); err != nil {
+				log.Panicf("open old vlog state segment file error %v", err)
 			}
 		}
 	}
@@ -83,8 +92,8 @@ func NewWal(config config.WalConfig) *WAL {
 		}
 	}
 
-	if wal.WALStateSegment == nil {
-		if wal.WALStateSegment, err = OpenWALStateSegment(filepath.Join(wal.walDirPath, uuid.New().String()+WALSuffix)); err != nil {
+	if wal.WalStateSegment == nil {
+		if wal.WalStateSegment, err = OpenWalStateSegment(filepath.Join(wal.walDirPath, uuid.New().String()+WALSuffix)); err != nil {
 			log.Panicf("create a new kv state segment file error %v", err)
 		}
 	}
@@ -117,6 +126,9 @@ func (wal *WAL) rotateActiveSegment() {
 }
 
 func (wal *WAL) Write(entries []*pb.Entry) error {
+	wal.lock.Lock()
+	defer wal.lock.Unlock()
+
 	data := make([]byte, 0)
 	bytesCount := 0
 
@@ -136,7 +148,9 @@ func (wal *WAL) Write(entries []*pb.Entry) error {
 
 // Truncate truncate掉index之后的所有segment包括当前的active segment
 func (wal *WAL) Truncate(index uint64) error {
-	//todo 需要停止向active segment写入此时有没有并发问题？
+	wal.lock.Lock()
+	defer wal.lock.Unlock()
+
 	wal.OrderSegmentList.insert(wal.activeSegment)
 	wal.activeSegment = <-wal.segmentPipe
 
@@ -151,7 +165,7 @@ func (wal *WAL) Truncate(index uint64) error {
 		if header.Index == index {
 			err = seg.Fd.Truncate(int64(reader.blocksOffset))
 			if err != nil {
-				log.Errorf("Truncate segment file failed", err)
+				log.Errorf("Truncate segment file failed %v", err)
 				return err
 			}
 			break
