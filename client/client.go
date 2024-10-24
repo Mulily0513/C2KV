@@ -77,7 +77,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// dialSetupOpts gives the dial opts prior to any authentication.
+// SetupOpts dialSetupOpts gives the dial opts prior to any authentication.
 func (c *Client) SetupOpts(dopts ...grpc.DialOption) (opts []grpc.DialOption, err error) {
 	if c.cfg.DialKeepAliveTime > 0 {
 		params := keepalive.ClientParameters{

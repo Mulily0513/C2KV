@@ -18,7 +18,7 @@ type MemConfig struct {
 	// Default value is 64MB. MB Unit
 	MemTableSize int64 `yaml:"memTableSize" json:"memTableSize"`
 
-	// memTable的写入并发度
+	// Write concurrent threads of memTable
 	Concurrency int `yaml:"concurrency"  json:"concurrency"`
 }
 
@@ -30,7 +30,7 @@ type WalConfig struct {
 }
 
 type ValueLogConfig struct {
-	ValueLogDir string `yaml:"valueLogDir"  json:"valueLogDir""`
+	ValueLogDir string `yaml:"valueLogDir"  json:"valueLogDir"`
 
 	PartitionNums int `yaml:"partitionNums" json:"partitionNums"`
 

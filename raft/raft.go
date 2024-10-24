@@ -86,13 +86,13 @@ type raft struct {
 	state StateType
 
 	raftLog *raftLog
-	//用于追踪节点的相关信息
+	// Used for tracking relevant information of nodes.
 	trk tracker.ProgressTracker
-	//需要发送给其他节点的消息
+	// Messages to be sent to other nodes.
 	msgs []*pb.Message
-	//不同角色指向不同的stepFunc
+	// Different roles point to different stepFuncs.
 	stepFunc stepFunc
-	//不同角色指向不同的tick驱动函数
+	// Different roles point to different tick driving functions.
 	tick func()
 
 	electionTimeout  int
@@ -162,19 +162,19 @@ func (r *raft) becomeLeader() {
 	r.state = StateLeader
 	r.trk.Progress[r.id].BecomeReplicate()
 
-	// 成为 leader 后,每个 follower 的 match 为0, next为最后一条日志的下一条日志
+	//After becoming a leader, the match of each follower is set to 0, and the next is the next log entry after the last log entry.
 	lastIndex := r.raftLog.lastIndex()
 	for pr := range r.trk.Progress {
 		r.trk.Progress[pr].Next = lastIndex + 1
 		if pr == r.id {
-			// 更新leader的match为last index
+			// Update the match of the leader to the last index.
 			r.trk.Progress[r.id].Match = lastIndex
 		} else {
 			r.trk.Progress[pr].Match = 0
 		}
 	}
 
-	//在成为leader后需要插入一条空日志
+	//After becoming a leader, an empty log needs to be inserted.
 	emptyEnt := pb.Entry{Data: nil}
 	r.appendEntry(emptyEnt)
 	log.Infof("node(id:%x) became leader at term %d", r.id, r.Term)

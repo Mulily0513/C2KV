@@ -7,6 +7,6 @@ To get `benchmark` from the `main` branch via `go get`:
 ```sh
 $ go get go.etcd.io/etcd/tools/benchmark
 # GOPATH should be set
-$ ls $GOPATH/bin
+$ ls $GOPATH/script
 benchmark
 ```

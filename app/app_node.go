@@ -30,7 +30,8 @@ type AppNode struct {
 }
 
 func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *config.RaftConfig) {
-	proposeC := make(chan []byte, raftConfig.RequestTimeOut)
+	log.Infof("node(id:%d name:%s)local info %v", localInfo.LocalId, localInfo.LocalName, localInfo)
+	proposeC := make(chan []byte)
 	confChangeC := make(chan pb.ConfChange)
 	kvServiceStopC := make(chan struct{})
 	monitorKV := make(map[string]chan struct{})
@@ -46,14 +47,14 @@ func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *
 		monitorKV:      monitorKV,
 	}
 
-	// 完成当前节点与集群中其他节点之间的网络连接
+	// Complete the network connection between the current node and other nodes in the cluster.
 	an.servePeerRaft()
 
-	// 启动Raft算法层
+	// Start the Raft algorithm layer.
 	an.raftNode = raft.StartRaftNode(localInfo.LocalId, raftConfig, kvStorage)
-	// 启动一个goroutine,处理appNode与raftNode的交互
+	// Start a goroutine to handle the interaction between appNode and raftNode.
 	go an.serveRaftNode()
-	// 启动一个goroutine,处理客户端请求的节点变更以及日志提议
+	// Start a goroutine to handle node changes and log proposals for client requests.
 	go an.servePropCAndConfC()
 
 	StartKVAPIService(proposeC, raftConfig.RequestTimeOut, kvStorage, monitorKV, localInfo.LocalEAddr, kvServiceStopC, an.raftNode)
