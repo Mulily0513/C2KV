@@ -12,15 +12,15 @@ RUN echo 'root:root1234' | chpasswd
 
 # build c2kv
 RUN mkdir -p /app/src
-COPY ./ /app/src
-COPY ./config.yaml /app/
-COPY --chmod=0755 ./script/ /app/
+RUN mkdir -p /app/scripts
+COPY . /app/src
+COPY ./deploy/dev/config_dev.yaml /app/
+COPY ./scripts /app/scripts/
+RUN chmod +x /app/scripts/*.sh
 ENV GOPROXY=https://goproxy.io,direct
 RUN cd /app/src && go build -o ../c2kv
 
-#ENTRYPOINT ["/app/run.sh"]
-
-WORKDIR /app
+ENTRYPOINT ["/app/scripts/run_dev.sh"]
 
 # c2kv expose ports
 EXPOSE 2345 7878

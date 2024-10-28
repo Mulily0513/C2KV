@@ -50,6 +50,7 @@ func NewWal(config config.WalConfig) *WAL {
 		OrderSegmentList: newOrderedSegmentList(),
 		activeSegment:    newSegmentFile(config),
 		segmentPipe:      segmentPipe,
+		lock:             new(sync.Mutex),
 	}
 
 	files, err := os.ReadDir(wal.walDirPath)

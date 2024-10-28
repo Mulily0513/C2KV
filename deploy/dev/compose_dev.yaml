@@ -11,8 +11,8 @@
 services:
   node1:
     build:
-      context: ./
-      dockerfile: dockerfile-dev
+      context: ../..
+      dockerfile: ./deploy/dev/dockerfile-dev
     ports:
     # dlv port
       - 40001:40000
@@ -22,9 +22,9 @@ services:
     networks:
       mynetwork:
         ipv4_address: 172.19.0.11
-    volumes:
-      - ./:/app/src
-      - ./config.yaml:/app/config.yaml
+     #volumes:
+      #- ./config_dev.yaml:/app/config_dev.yaml
+      #- ./scripts:/app/scripts
     environment:
       - C2KV_NODE_ID=1
       - C2KV_NODE_NAME=node1
@@ -33,8 +33,8 @@ services:
       - C2KV_NODE_PEERS=2-node2-172.19.0.12:7878,3-node3-172.19.0.13:7878
   node2:
     build:
-      context: ./
-      dockerfile: dockerfile-dev
+      context: ../..
+      dockerfile: ./deploy/dev/dockerfile-dev
     ports:
       # dlv port
       - 40002:40000
@@ -44,9 +44,9 @@ services:
     networks:
       mynetwork:
         ipv4_address: 172.19.0.12
-    volumes:
-      - ./:/app/src
-      - ./config.yaml:/app/config.yaml
+      #volumes:
+    #- ./config_dev.yaml:/app/config_dev.yaml
+    #- ./scripts:/app/scripts
     environment:
       - C2KV_NODE_ID=2
       - C2KV_NODE_NAME=node2
@@ -55,8 +55,8 @@ services:
       - C2KV_NODE_PEERS=1-node1-172.19.0.11:7878,3-node3-172.19.0.13:7878
   node3:
     build:
-      context: ./
-      dockerfile: dockerfile-dev
+      context: ../..
+      dockerfile: ./deploy/dev/dockerfile-dev
     ports:
       # dlv port
       - 40003:40000
@@ -66,9 +66,9 @@ services:
     networks:
       mynetwork:
         ipv4_address: 172.19.0.13
-    volumes:
-      - ./:/app/src
-      - ./config.yaml:/app/config.yaml
+    #volumes:
+    #- ./config_dev.yaml:/app/config_dev.yaml
+    #- ./scripts:/app/scripts
     environment:
       - C2KV_NODE_ID=3
       - C2KV_NODE_NAME=node3

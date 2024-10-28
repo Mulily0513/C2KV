@@ -106,8 +106,8 @@ func (rn *raftNode) serveAppNode() {
 	var rd Ready
 
 	for {
-		//advanceC 不为nil，说明此时在等待应用层处理上轮ready
-		//此时不能发送新的ready到应用层，将readyC置为nil
+		//If advanceC is not nil, it means that at this time it is waiting for the application layer to process the previous ready.
+		//At this time, a new ready cannot be sent to the application layer, so readyC is set to nil.
 		if advanceC != nil {
 			readyC = nil
 		} else if advanceC == nil && rn.HasReady() {
@@ -119,8 +119,10 @@ func (rn *raftNode) serveAppNode() {
 		case <-rn.tickC:
 			rn.raft.tick()
 
+			//msg from peers
 		case m := <-rn.receiveC:
 			rn.raft.Step(m)
+			//msg from client
 		case m := <-rn.propC:
 			rn.raft.Step(m)
 

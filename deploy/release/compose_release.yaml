@@ -4,15 +4,15 @@
 
 # Here the instructions define your application as two services called "todo-app" and “todo-database”
 # The service “todo-app” is built from the Dockerfile in the /app directory,
-# and the service “todo-database” uses the official MongoDB image 
-# from Docker Hub - https://hub.docker.com/_/mongo. 
+# and the service “todo-database” uses the official MongoDB image
+# from Docker Hub - https://hub.docker.com/_/mongo.
 # You can add other services your application may depend on here.
 
 services:
   node1:
     build:
-      context: ./
-      dockerfile: dockerfile-dev
+      context: ../..
+      dockerfile: ./deploy/dev/dockerfile-dev
     ports:
     # dlv port
       - 40001:40000
@@ -33,8 +33,8 @@ services:
       - C2KV_NODE_PEERS=2-node2-172.19.0.12:7878,3-node3-172.19.0.13:7878
   node2:
     build:
-      context: ./
-      dockerfile: dockerfile-dev
+      context: ../..
+      dockerfile: ../dockerfile-dev
     ports:
       # dlv port
       - 40002:40000
@@ -55,8 +55,8 @@ services:
       - C2KV_NODE_PEERS=1-node1-172.19.0.11:7878,3-node3-172.19.0.13:7878
   node3:
     build:
-      context: ./
-      dockerfile: dockerfile-dev
+      context: ../..
+      dockerfile: ../dockerfile-dev
     ports:
       # dlv port
       - 40003:40000

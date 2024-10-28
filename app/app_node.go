@@ -30,7 +30,7 @@ type AppNode struct {
 }
 
 func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *config.RaftConfig) {
-	log.Infof("node(id:%d name:%s)local info %v", localInfo.LocalId, localInfo.LocalName, localInfo)
+	log.Infof("node(id:%d name:%s)local info : %v", localInfo.LocalId, localInfo.LocalName, localInfo)
 	proposeC := make(chan []byte)
 	confChangeC := make(chan pb.ConfChange)
 	kvServiceStopC := make(chan struct{})

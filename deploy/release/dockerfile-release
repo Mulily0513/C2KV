@@ -12,13 +12,13 @@ RUN echo 'root:root1234' | chpasswd
 
 # build c2kv
 RUN mkdir -p /app/src
-COPY ./ /app/src
-COPY ./config.yaml /app/
-COPY --chmod=0755 ./script/ /app/
+COPY ../.. /app/src
+COPY config.yaml /app/
+COPY --chmod=0755 ../../scripts /app/
 ENV GOPROXY=https://goproxy.io,direct
 RUN cd /app/src && go build -o ../c2kv
 
-#ENTRYPOINT ["/app/run.sh"]
+#ENTRYPOINT ["/app/run_dev.sh"]
 
 WORKDIR /app
 

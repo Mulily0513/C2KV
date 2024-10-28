@@ -44,14 +44,14 @@ func (cw *streamWriter) run() {
 		case m := <-msgC:
 			if _, err := cw.enc.encodeAndWrite(m); err != nil {
 				cw.netErrC <- err
-				log.Errorf("lost TCP streaming connection , local ip : %s remote ip : %s ,err : %v", cw.localIAddr, cw.peerIAddr, err)
+				log.Errorf("lost tcp streaming connection , local ip : %s remote ip : %s ,err : %v", cw.localIAddr, cw.peerIAddr, err)
 				cw.close()
 			}
 		case conn := <-cw.connC:
 			cw.close()
 			cw.enc = &msgEncoderAndWriter{conn}
 			msgC = cw.msgC
-			log.Infof("TCP connection access success, start streamWriter, local ip : %s, remote ip : %s", cw.localIAddr, cw.peerIAddr)
+			log.Infof("tcp connection access success, start streamWriter, local ip : %s, remote ip : %s", cw.localIAddr, cw.peerIAddr)
 		}
 	}
 }

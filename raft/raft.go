@@ -547,9 +547,7 @@ func (r *raft) sendAllRequestVote() {
 	}
 }
 
-// id   t 预选举或选举 v 是否拒绝
 func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected int, result quorum.VoteResult) {
-	//本节点不做日志记录
 	if id != r.id {
 		if v {
 			log.Infof("node(id:%x) received %s from node(id:%x) at term %d", r.id, t, id, r.Term)
