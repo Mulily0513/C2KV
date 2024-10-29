@@ -19,7 +19,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/Mulily0513/C2KV/client"
-	"github.com/Mulily0513/C2KV/tool/report"
+	"github.com/Mulily0513/C2KV/tools/report"
 	"gopkg.in/cheggaaa/pb.v1"
 	"math"
 	"math/rand"

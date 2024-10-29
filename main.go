@@ -10,8 +10,8 @@ import (
 
 func main() {
 	var cfgPath string
-	flag.StringVar(&cfgPath, "c", "./config.yaml", "c2kv config path")
-	flag.StringVar(&config.Mode, "m", "debug", "c2kv mode")
+	flag.StringVar(&cfgPath, "c", "./deploy/dev/config_dev.yaml", "c2kv config path")
+	flag.StringVar(&config.Mode, "m", "release", "c2kv mode")
 	flag.Parse()
 	config.InitConfig(cfgPath)
 	log.InitLog(config.GetZapConf())

@@ -16,7 +16,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/Mulily0513/C2KV/tool/benchmark/cmd"
+	"github.com/Mulily0513/C2KV/tools/benchmark/cmd"
 	"os"
 )
 

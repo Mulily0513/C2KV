@@ -22,9 +22,6 @@ services:
     networks:
       mynetwork:
         ipv4_address: 172.19.0.11
-     #volumes:
-      #- ./config_dev.yaml:/app/config_dev.yaml
-      #- ./scripts:/app/scripts
     environment:
       - C2KV_NODE_ID=1
       - C2KV_NODE_NAME=node1
@@ -44,9 +41,6 @@ services:
     networks:
       mynetwork:
         ipv4_address: 172.19.0.12
-      #volumes:
-    #- ./config_dev.yaml:/app/config_dev.yaml
-    #- ./scripts:/app/scripts
     environment:
       - C2KV_NODE_ID=2
       - C2KV_NODE_NAME=node2
@@ -66,9 +60,6 @@ services:
     networks:
       mynetwork:
         ipv4_address: 172.19.0.13
-    #volumes:
-    #- ./config_dev.yaml:/app/config_dev.yaml
-    #- ./scripts:/app/scripts
     environment:
       - C2KV_NODE_ID=3
       - C2KV_NODE_NAME=node3

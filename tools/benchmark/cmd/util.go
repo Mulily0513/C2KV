@@ -18,7 +18,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/Mulily0513/C2KV/client"
-	"github.com/Mulily0513/C2KV/tool/report"
+	"github.com/Mulily0513/C2KV/tools/report"
 	"os"
 )
 
