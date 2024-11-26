@@ -54,6 +54,7 @@ func (s *KvService) Propose(key, val []byte, delete bool) error {
 	timeOutC := time.NewTimer(s.ReqTimeout)
 	uid := []byte(uuid.New().String())
 	kv := new(marshal.KV)
+	kv.Data = new(marshal.Data)
 	kv.Key = key
 	kv.Data.Value = val
 	kv.Data.TimeStamp = time.Now().Unix()

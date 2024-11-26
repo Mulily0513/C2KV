@@ -20,6 +20,7 @@ import (
 	"go.etcd.io/etcd/client/pkg/v3/logutil"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -54,7 +55,7 @@ func FindLeaderClient(cfg Config) (*Client, string, error) {
 
 func NewClient(addr string) (*Client, error) {
 	client := new(Client)
-	conn, err := grpc.NewClient(addr)
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

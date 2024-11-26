@@ -30,7 +30,7 @@ type AppNode struct {
 }
 
 func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *config.RaftConfig) {
-	log.Infof("node(id:%d name:%s)local info : %v", localInfo.LocalId, localInfo.LocalName, localInfo)
+	log.Infof("start app node(id:%d name:%s), local info : %+v", localInfo.LocalId, localInfo.LocalName, localInfo)
 	proposeC := make(chan []byte)
 	confChangeC := make(chan pb.ConfChange)
 	kvServiceStopC := make(chan struct{})
@@ -70,11 +70,11 @@ func (an *AppNode) servePeerRaft() {
 		StopC:        make(chan struct{}),
 	}
 
-	log.Infof("node(id:%d)start listening, local addr : %s", an.localId, an.localIAddr)
 	ln, err := net.Listen("tcp", an.localIAddr)
 	if err != nil {
 		log.Panicf("start listening failed %s", an.localIAddr)
 	}
+	log.Infof("node(id:%d iaddr:%s) start listening......", an.localId, an.localIAddr)
 
 	for _, peer := range an.peers {
 		if peer.Id != an.localId {
@@ -95,7 +95,7 @@ func (an *AppNode) serveRaftNode() {
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
 			wg := new(sync.WaitGroup)
-			log.Debugf("ready:%+v", rd)
+			//log.Infof("ready:%+v", rd)
 			if !raft.IsEmptyHardState(rd.HardState) {
 				wg.Add(1)
 				go an.kvStorage.PersistHardState(rd.HardState, wg)
@@ -137,6 +137,7 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 	for i, entry := range ents {
 		switch ents[i].Type {
 		case pb.EntryNormal:
+			// leader none msg
 			if len(ents[i].Data) == 0 {
 				continue
 			}
@@ -144,17 +145,20 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 		}
 	}
 
-	var kv *marshal.KV
 	kvs := make([]*marshal.KV, len(entries))
 	kvUUIDs := make([][]byte, 0)
 	for _, entry := range entries {
-		kv = marshal.DecodeKV(entry.Data)
+		kv := marshal.DecodeKV(entry.Data)
 		kvs = append(kvs, kv)
 		kvUUIDs = append(kvUUIDs, kv.ApplySig)
 	}
 
+	if len(kvs) == 0 {
+		return
+	}
+
 	if err := an.kvStorage.Apply(kvs); err != nil {
-		log.Panicf("apply ents")
+		log.Panicf("apply ents failed %v", err)
 		return
 	}
 
@@ -166,7 +170,7 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 	return
 }
 
-// Process Rat网络层接口,网络层通过该接口与RaftNode交互
+// Process Rat network layer interface. The network layer interacts with the RaftNode through this interface.
 func (an *AppNode) Process(m *pb.Message) {
 	an.raftNode.Step(m)
 }

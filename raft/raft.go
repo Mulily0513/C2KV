@@ -107,7 +107,7 @@ type raft struct {
 
 func newRaft(opts *raftOpts) (r *raft) {
 	if err := opts.validate(); err != nil {
-		log.Panicf("verify raft options failed", err)
+		log.Panicf("verify raft options failed %v", err)
 	}
 
 	r = &raft{
@@ -202,7 +202,7 @@ func (r *raft) becomeCandidate() {
 func (r *raft) tickElection() {
 	r.electionElapsed++
 	if r.electionElapsed >= r.randomizedElectionTimeout {
-		log.Warnf("node(id:%x) election timeout, start election", r.id)
+		log.Infof("node(id:%x) election timeout, start election", r.id)
 		r.electionElapsed = 0
 		r.Step(&pb.Message{From: r.id, Type: pb.MsgHup})
 	}
@@ -218,7 +218,7 @@ func (r *raft) tickHeartbeat() {
 		//todo leader check Quorum
 	}
 
-	//心跳超时，发送心跳
+	// Heartbeat timeout. Send heartbeat.
 	if r.heartbeatElapsed >= r.heartbeatTimeout {
 		r.heartbeatElapsed = 0
 		r.Step(&pb.Message{From: r.id, Type: pb.MsgBeat})
@@ -503,7 +503,7 @@ func (r *raft) handleAppendEntries(m *pb.Message) {
 
 // ------------------ candidate behavior ------------------
 
-// 选举可以由heartbeat timeout触发或者客户端主动发起选举触发
+// Elections can be triggered by heartbeat timeouts or initiated by clients.
 func (r *raft) hup() {
 	if r.state == StateLeader {
 		log.Warnf("%x ignoring MsgHup because already leader", r.id)
@@ -511,7 +511,7 @@ func (r *raft) hup() {
 	}
 	log.Infof("node(id:%x) is starting a new election at term %d", r.id, r.Term)
 	r.becomeCandidate()
-	//如果是单节点，直接成为leader
+	// If it is a single node, directly become the leader.
 	if _, _, res := r.poll(r.id, voteRespMsgType(pb.MsgVote), true); res == quorum.VoteWon {
 		r.becomeLeader()
 		return

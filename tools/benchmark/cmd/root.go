@@ -25,7 +25,7 @@ import (
 var RootCmd = &cobra.Command{
 	Use:   "benchmark",
 	Short: "A low-level benchmark tools for c2kv",
-	Long:  `benchmark is a low-level benchmark tools for c2kv.It uses gRPC client directly and does not depend onc2kv client library.`,
+	Long:  `benchmark is a low-level benchmark tools for c2kv.It uses gRPC client directly and does not depend on c2kv client library.`,
 }
 
 var (

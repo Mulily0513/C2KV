@@ -17,10 +17,12 @@ COPY . /app/src
 COPY ./deploy/dev/config_dev.yaml /app/
 COPY ./scripts /app/scripts/
 RUN chmod +x /app/scripts/*.sh
-ENV GOPROXY=https://goproxy.io,direct
+COPY ./scripts/run_dev.sh /app/
+ENV GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
 RUN cd /app/src && go build -o ../c2kv
 
-ENTRYPOINT ["/app/scripts/run_dev.sh"]
+CMD /usr/sbin/sshd -D
+#ENTRYPOINT ["/app/scripts/run_dev.sh"]
 
 # c2kv expose ports
 EXPOSE 2345 7878

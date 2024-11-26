@@ -2,6 +2,7 @@ package transport
 
 import (
 	"encoding/binary"
+	"errors"
 	"github.com/Mulily0513/C2KV/log"
 	"github.com/Mulily0513/C2KV/pb"
 	"io"
@@ -16,6 +17,9 @@ func (enc *msgEncoderAndWriter) encodeAndWrite(m *pb.Message) (int, error) {
 	b, err := m.Marshal()
 	if err != nil {
 		log.Panicf("marshal failed:%v", err)
+	}
+	if enc.w == nil {
+		return 0, errors.New("conn is nil")
 	}
 	return enc.w.Write(newPackage(DefaultId, b).marshal())
 }

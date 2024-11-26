@@ -30,7 +30,9 @@ type peer struct {
 	streamWriter *streamWriter
 	streamReader *streamReader
 
-	recvC chan *pb.Message //从Stream消息通道中读取到消息之后，会通过该通道将消息交给Raft接口，然后由它返回给底层etcd-raft模块进行处理
+	//After reading a message from the Stream message channel, the message will be passed to the Raft interface through this channel.
+	//and then it will be returned to the underlying etcd-raft module for processing.
+	recvC chan *pb.Message
 	stopC chan struct{}
 }
 
@@ -38,7 +40,7 @@ func (p *peer) Send(m *pb.Message) {
 	select {
 	case p.streamWriter.msgC <- m:
 	default:
-		log.Errorf("dropped internal Raft message since sending buffer is full (overloaded network),message:%v, local ip : %s, remote ip : &s", *m, p.localIAddr, p.peerAddr)
+		log.Errorf("dropped internal Raft message since sending buffer is full (overloaded network),message:%+v, local ip : %s, remote ip : %s", *m, p.localIAddr, p.peerAddr)
 	}
 }
 

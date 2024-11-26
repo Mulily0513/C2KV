@@ -17,9 +17,11 @@ type streamWriter struct {
 	localIAddr string
 	peerIAddr  string
 
-	enc     *msgEncoderAndWriter
-	msgC    chan *pb.Message //Peer会将待发送的消息写入到该通道，streamWriter则从该通道中读取消息并发送出去
-	connC   chan net.Conn    //通过该通道获取当前streamWriter实例关联的底层网络连接
+	enc *msgEncoderAndWriter
+	// Peer will write the message to be sent into this channel, and streamWriter will read the message from this channel and send it out.
+	msgC chan *pb.Message
+	// Obtain the underlying network connection associated with the current streamWriter instance through this channel.
+	connC   chan net.Conn
 	netErrC chan error
 }
 
@@ -51,7 +53,7 @@ func (cw *streamWriter) run() {
 			cw.close()
 			cw.enc = &msgEncoderAndWriter{conn}
 			msgC = cw.msgC
-			log.Infof("tcp connection access success, start streamWriter, local ip : %s, remote ip : %s", cw.localIAddr, cw.peerIAddr)
+			log.Infof("tcp conn access success, start streamWriter, local ip : %s, remote ip : %s", cw.localIAddr, cw.peerIAddr)
 		}
 	}
 }
