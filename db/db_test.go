@@ -53,5 +53,6 @@ func TestC2KV_Apply(t *testing.T) {
 	assert.EqualValues(t, kt.FirstIndex(), 251)
 	assert.EqualValues(t, kt.StableIndex(), 500)
 	assert.EqualValues(t, kt.wal.WalStateSegment.AppliedIndex, 250)
+	assert.EqualValues(t, kt.lastAppliedTerm, 250)
 	kt.Remove()
 }

@@ -61,6 +61,8 @@ func (s *KvService) Propose(key, val []byte, delete bool) error {
 	kv.ApplySig = uid
 	if delete {
 		kv.Data.Type = marshal.TypeDelete
+	} else {
+		kv.Data.Type = marshal.TypeInsert
 	}
 	buf := marshal.EncodeKV(kv)
 	s.proposeC <- buf

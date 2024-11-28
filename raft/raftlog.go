@@ -18,12 +18,13 @@ var ErrCompacted = errors.New("requested index is unavailable due to compaction"
 //	--vlog--|--------------------------wal--------------------------------------------------|
 
 type raftLog struct {
-	//已经应用到memtable中最后一条日志的index
+	// Index of the last log entry already applied to the memtable.
 	applied uint64
 
 	committed uint64
 
-	stabled uint64 //等于稳定存储的last index
+	// Equal to the last index of stable storage.
+	stabled uint64
 
 	// 这个偏移量（u.offset）表示当前不稳定日志中的第一个条目在整个日志中的位置。举个例子，
 	// 如果 u.offset 为 10，那么不稳定日志中的第一个条目在整个日志中的位置就是第 10 个位置。
@@ -87,7 +88,7 @@ func (l *raftLog) term(i uint64) (uint64, error) {
 	return t, nil
 }
 
-// Entries 获取指定index之后的日志切片
+// Entries gets the log slice after the specified index.
 func (l *raftLog) entries(i uint64) (ents []*pb.Entry, err error) {
 	if i > l.lastIndex() {
 		return nil, code.ErrUnavailable
@@ -105,7 +106,7 @@ func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 		return nil, err
 	}
 
-	// 如果lo小于offset，则从storage中获取这部分日志
+	// If lo is less than offset, obtain this part of the log from storage.
 	var ents []*pb.Entry
 	if lo < l.offset {
 		stableEnts, err := l.storage.Entries(lo, min(hi, l.offset))
@@ -120,10 +121,10 @@ func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 		ents = stableEnts
 	}
 
-	// 如果hi大于offset，则从unstableEnts中获取这部分日志
+	//If hi is greater than offset, obtain this part of the log from unstableEnts.
 	if hi > l.offset {
 		unstableEnts := l.unstableEnts[max(lo, l.offset)-l.offset : hi-l.offset]
-		// 如果ents不为空，则将unstableEnts与ents合并
+		// If ents is not empty, merge unstableEnts with ents.
 		if len(ents) > 0 {
 			combined := make([]*pb.Entry, len(ents)+len(unstableEnts))
 			n := copy(combined, ents)
@@ -232,7 +233,8 @@ func (l *raftLog) findConflict(ents []*pb.Entry) uint64 {
 
 func (l *raftLog) truncateAndAppend(ents []*pb.Entry) {
 	after := ents[0].Index
-	//检查给定的日志起点是否在committed索引位置之前，如果在其之前，这违背了Raft算法的Log Matching性质
+	// Check if the given start index of the log is before the committed index position.
+	// If it is, this violates the Log Matching property of the Raft algorithm.
 	if after <= l.committed {
 		log.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
 	}

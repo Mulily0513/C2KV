@@ -24,9 +24,9 @@ type AppNode struct {
 	transport transport.Transporter
 	kvStorage db.Storage
 
-	proposeC       chan []byte        // 提议 (k,v) channel
-	confChangeC    chan pb.ConfChange // 提议更改配置文件 channel
-	kvServiceStopC chan struct{}      // 关闭http服务器的信号 channel
+	proposeC       chan []byte
+	confChangeC    chan pb.ConfChange
+	kvServiceStopC chan struct{}
 }
 
 func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *config.RaftConfig) {
@@ -95,28 +95,39 @@ func (an *AppNode) serveRaftNode() {
 			an.raftNode.Tick()
 		case rd := <-an.raftNode.Ready():
 			wg := new(sync.WaitGroup)
-			//log.Infof("ready:%+v", rd)
 			if !raft.IsEmptyHardState(rd.HardState) {
+				log.Debugf("ready, hard state: %+v", rd.HardState)
 				wg.Add(1)
 				go an.kvStorage.PersistHardState(rd.HardState, wg)
 			}
 
 			if len(rd.UnstableEntries) > 0 {
+				log.Debugf("ready, unstable entries:%+v", rd.UnstableEntries)
 				wg.Add(1)
 				go an.kvStorage.PersistUnstableEnts(rd.UnstableEntries, wg)
 			}
 
 			if len(rd.CommittedEntries) > 0 {
+				log.Debugf("ready, committed entries:%+v", rd.CommittedEntries)
 				wg.Add(1)
 				go an.applyCommittedEnts(rd.CommittedEntries, wg)
 			}
 
 			if len(rd.Messages) > 0 {
+				msgDebugExceptHeartbeat(rd.Messages)
 				go an.transport.Send(rd.Messages)
 			}
 
 			wg.Wait()
 			an.raftNode.Advance()
+		}
+	}
+}
+
+func msgDebugExceptHeartbeat(msgs []*pb.Message) {
+	for _, m := range msgs {
+		if m.Type != pb.MsgHeartbeat && m.Type != pb.MsgHeartbeatResp {
+			log.Debugf("ready, msg:%+v", m)
 		}
 	}
 }
@@ -137,24 +148,17 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 	for i, entry := range ents {
 		switch ents[i].Type {
 		case pb.EntryNormal:
-			// leader none msg
-			if len(ents[i].Data) == 0 {
-				continue
-			}
 			entries = append(entries, entry)
 		}
 	}
 
-	kvs := make([]*marshal.KV, len(entries))
+	kvs := make([]*marshal.KV, 0)
 	kvUUIDs := make([][]byte, 0)
 	for _, entry := range entries {
 		kv := marshal.DecodeKV(entry.Data)
+		kv.Data.Index = entry.Index
 		kvs = append(kvs, kv)
 		kvUUIDs = append(kvUUIDs, kv.ApplySig)
-	}
-
-	if len(kvs) == 0 {
-		return
 	}
 
 	if err := an.kvStorage.Apply(kvs); err != nil {
@@ -162,11 +166,12 @@ func (an *AppNode) applyCommittedEnts(ents []*pb.Entry, wg *sync.WaitGroup) {
 		return
 	}
 
-	for _, id := range kvUUIDs {
-		close(an.monitorKV[string(id)])
-		delete(an.monitorKV, string(id))
+	if len(an.monitorKV) > 0 {
+		for _, id := range kvUUIDs {
+			close(an.monitorKV[string(id)])
+			delete(an.monitorKV, string(id))
+		}
 	}
-
 	return
 }
 

@@ -20,13 +20,24 @@ func main() {
 		return
 	}
 
-	rsp, err := cli.Put(context.Background(), key, value)
+	putrsp, err := cli.Put(context.Background(), key, value)
 	if err != nil {
 		println(err.Error())
 		return
 	}
 
-	if rsp.Msg != "ok" {
-		println(rsp.Msg)
+	if putrsp.Msg != "ok" {
+		println(putrsp.Msg)
+	} else {
+		println(putrsp.Msg)
+	}
+
+	getrsp, err := cli.Get(context.Background(), key)
+	if err != nil {
+		println(err.Error())
+		return
+	}
+	for _, item := range getrsp.Kvs {
+		println(string(item.Key), string(item.Value))
 	}
 }

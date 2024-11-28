@@ -28,7 +28,7 @@ type BytesKV struct {
 }
 
 type KV struct {
-	ApplySig []byte //16 bytes
+	ApplySig []byte // uuid 36B
 	KeySize  uint32
 	Key      []byte
 	Data     *Data //Data needs to be serialized as a whole and written into the skip list.

@@ -5,6 +5,7 @@ import (
 	"github.com/Mulily0513/C2KV/db"
 	"github.com/Mulily0513/C2KV/log"
 	"github.com/Mulily0513/C2KV/pb"
+	"strings"
 )
 
 //go:generate mockgen -source=./raft_node.go -destination=../mocks/raft_node.go -package=mock
@@ -97,6 +98,9 @@ func StartRaftNode(id uint64, raftConfig *config.RaftConfig, storage db.Storage)
 	rn.prevSoftSt = rn.raft.softState()
 	rn.prevHardSt = rn.raft.hardState()
 	go rn.serveAppNode()
+	log.Infof("start raft node(id:%x lead:%d state:%s) success,  peers(%s), term: %d, commit: %d, applied: %d, lastindex: %d, lastterm: %d",
+		rn.raft.id, rn.raft.lead, rn.raft.state, strings.Join(rn.raft.trk.VoterNodesStr(), ","), rn.raft.Term, rn.raft.raftLog.committed,
+		rn.raft.raftLog.applied, rn.raft.raftLog.lastIndex(), rn.raft.raftLog.lastTerm())
 	return rn
 }
 
@@ -158,8 +162,10 @@ func (rn *raftNode) Step(m *pb.Message) {
 	}
 	if m.Type == pb.MsgProp {
 		rn.propC <- m
+	} else {
+		rn.receiveC <- m
 	}
-	rn.receiveC <- m
+	return
 }
 
 func (rn *raftNode) Propose(data []byte) {
@@ -213,6 +219,7 @@ func (rn *raftNode) newReady() Ready {
 	if hardSt := rn.raft.hardState(); !isHardStateEqual(hardSt, rn.prevHardSt) {
 		rd.HardState = hardSt
 	}
+	//clear msg
 	rn.raft.msgs = nil
 	return rd
 }

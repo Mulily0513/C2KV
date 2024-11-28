@@ -276,7 +276,7 @@ func MockApplyData(num int) ([]*pb.Entry, []*marshal.KV) {
 	ents := make([]*pb.Entry, 0)
 	for i := 1; i <= num; i++ {
 		kv := CreateSingleKV(250, false, uint64(i))
-		ent := &pb.Entry{1, uint64(i), pb.EntryNormal, marshal.EncodeKV(kv)}
+		ent := &pb.Entry{uint64(i), uint64(i), pb.EntryNormal, marshal.EncodeKV(kv)}
 		kvs = append(kvs, kv)
 		ents = append(ents, ent)
 	}

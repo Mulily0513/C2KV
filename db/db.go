@@ -56,6 +56,9 @@ type C2KV struct {
 	valueLog *ValueLog
 
 	entries []*pb.Entry //stable raft log entries
+
+	lastAppliedTerm  uint64
+	lastAppliedIndex uint64
 }
 
 func dbCfgCheck(dbCfg *config.DBConfig) {
@@ -237,6 +240,12 @@ ExitLoop:
 func (db *C2KV) Get(key []byte) (kv *marshal.KV, err error) {
 	kv, flag := db.activeMem.Get(key)
 	if !flag {
+		for _, immem := range db.immtableQ.All() {
+			kv, flag = immem.Get(key)
+			if flag {
+				return kv, nil
+			}
+		}
 		return db.valueLog.Get(key)
 	}
 	return kv, nil
@@ -277,6 +286,7 @@ func (db *C2KV) Scan(lowKey []byte, highKey []byte) ([]*marshal.KV, error) {
 func (db *C2KV) Apply(kvs []*marshal.KV) (err error) {
 	lastIndex := kvs[len(kvs)-1].Data.Index
 	firstIndex := kvs[0].Data.Index
+	//log.Debugf("%+v", *db.entries[0])
 	if firstIndex != db.FirstIndex() {
 		log.Panicf("the first index of kvs is not equal to the first index of wal %v", err)
 	}
@@ -298,6 +308,8 @@ func (db *C2KV) Apply(kvs []*marshal.KV) (err error) {
 	}
 
 	offset := int64(lastIndex) - int64(firstIndex) + 1
+	db.lastAppliedTerm = db.entries[offset-1].Term
+	db.lastAppliedIndex = db.entries[offset-1].Index
 	db.entries = db.entries[offset:]
 	return
 }
@@ -353,16 +365,20 @@ func (db *C2KV) Entries(lo, hi uint64) (entries []*pb.Entry, err error) {
 }
 
 func (db *C2KV) Term(i uint64) (uint64, error) {
-	if i < db.FirstIndex() {
-		return 0, code.ErrCompacted
-	}
 	if i == 0 {
 		return 0, nil
 	}
-	offset := db.entries[0].Index
-	if i < offset {
+	if i < db.FirstIndex() {
 		return 0, code.ErrCompacted
 	}
+	if len(db.entries) == 0 {
+		if i == db.lastAppliedIndex {
+			return db.lastAppliedTerm, nil
+		} else {
+			return 0, code.ErrCompacted
+		}
+	}
+	offset := db.entries[0].Index
 	return db.entries[i-offset].Term, nil
 }
 

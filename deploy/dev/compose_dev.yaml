@@ -18,6 +18,8 @@ services:
       - 40001:40000
     # ssh port
       - 122:22
+    # rpc port
+      - 2341:2345
     tty: true
     volumes:
       - ../..:/app/src
@@ -39,6 +41,8 @@ services:
       - 40002:40000
       # ssh port
       - 222:22
+      # rpc port
+      - 2342:2345
     tty: true
     volumes:
       - ../..:/app/src
@@ -60,6 +64,8 @@ services:
       - 40003:40000
       # ssh port
       - 322:22
+      # rpc port
+      - 2343:2345
     tty: true
     volumes:
       - ../..:/app/src

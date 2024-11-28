@@ -24,7 +24,8 @@ import (
 // maintains progresses of all followers, and sends entries to the follower
 // based on its progress.
 type Progress struct {
-	//分别表示follower当前匹配的最大日志匹配号和下一个待接收日志条目的匹配号。
+	//Respectively represent the maximum log match number currently matched by the follower
+	//and the match number of the next log entry to be received.
 	Match, Next uint64
 
 	State StateType

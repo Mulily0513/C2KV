@@ -24,7 +24,6 @@ import (
 	"github.com/Mulily0513/C2KV/raft/tracker"
 	"math"
 	"math/rand"
-	"strings"
 	"sync"
 	"time"
 )
@@ -33,7 +32,7 @@ const None uint64 = 0
 const InitialTerm uint64 = 0
 const noLimit = math.MaxUint64
 const (
-	StateFollower StateType = iota
+	StateFollower StateType = iota + 1
 	StateCandidate
 	StateLeader
 )
@@ -42,6 +41,7 @@ const (
 type StateType uint64
 
 var stmap = [...]string{
+	"StateNone",
 	"StateFollower",
 	"StateCandidate",
 	"StateLeader",
@@ -126,9 +126,6 @@ func newRaft(opts *raftOpts) (r *raft) {
 	}
 
 	r.becomeFollower(InitialTerm, None)
-
-	log.Infof("new raft node(id:%x) start,  peers(%s), term: %d, commit: %d, applied: %d, lastindex: %d, lastterm: %d",
-		r.id, strings.Join(r.trk.VoterNodesStr(), ","), r.Term, r.raftLog.committed, r.raftLog.applied, r.raftLog.lastIndex(), r.raftLog.lastTerm())
 	return
 }
 
@@ -175,8 +172,8 @@ func (r *raft) becomeLeader() {
 	}
 
 	//After becoming a leader, an empty log needs to be inserted.
-	emptyEnt := pb.Entry{Data: nil}
-	r.appendEntry(emptyEnt)
+	//emptyEnt := pb.Entry{Data: nil}
+	//r.appendEntry(emptyEnt)
 	log.Infof("node(id:%x) became leader at term %d", r.id, r.Term)
 }
 
@@ -241,15 +238,15 @@ func (r *raft) Step(m *pb.Message) {
 	case pb.MsgVote:
 		canVote := r.vote == m.From || (r.vote == None && r.lead == None)
 		if canVote && r.raftLog.isUpToDate(m.Index, m.LogTerm) {
-			log.Infof("node(id:%x logterm: %d, index: %d, vote: %x) approve %s from node(id:%x logterm: %d, index: %d) at term %d",
-				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(&pb.Message{From: r.id, To: m.From, Term: m.Term, Type: voteRespMsgType(m.Type), Reject: false})
 			r.electionElapsed = 0
 			r.vote = m.From
-		} else {
-			log.Infof("node(id:%x) [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d",
+			log.Infof("node(id:%x) [logterm: %d, index: %d, voteFor: %x] approve %s from node(id:%x) [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
+		} else {
 			r.send(&pb.Message{From: r.id, To: m.From, Term: r.Term, Type: voteRespMsgType(m.Type), Reject: true})
+			log.Infof("node(id:%x) [logterm: %d, index: %d, voteFor: %x] rejected %s from node(id:%x) [logterm: %d, index: %d] at term %d",
+				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 		}
 	default:
 		r.stepFunc(r, m)
@@ -355,6 +352,7 @@ func (r *raft) handleMsgUnreachableStatus(m *pb.Message) {
 }
 
 func (r *raft) handleAppendResponse(m *pb.Message) {
+	log.Debugf("start handle append response")
 	pr := r.trk.Progress[m.From]
 	if pr == nil {
 		log.Errorf("%x no progress available for %x", r.id, m.From)
@@ -399,6 +397,7 @@ func (r *raft) handleAppendResponse(m *pb.Message) {
 		//case pr.State == tracker.StateReplicate:
 		//}
 		if r.maybeCommit() {
+			log.Infof("commit update success")
 			//r.bcastAppend()
 		}
 	}
@@ -509,7 +508,7 @@ func (r *raft) hup() {
 		log.Warnf("%x ignoring MsgHup because already leader", r.id)
 		return
 	}
-	log.Infof("node(id:%x) is starting a new election at term %d", r.id, r.Term)
+	log.Infof("node(id:%x) starting a new election at term %d", r.id, r.Term)
 	r.becomeCandidate()
 	// If it is a single node, directly become the leader.
 	if _, _, res := r.poll(r.id, voteRespMsgType(pb.MsgVote), true); res == quorum.VoteWon {
@@ -582,10 +581,11 @@ func (r *raft) send(m *pb.Message) {
 }
 
 func (r *raft) advance(rd Ready) {
-	//todo there have two choice to apply committed index or stable index
-	//one for ready ,another for kvstore
+	// todo there have two choice to update committed index or stable index
+	// one for ready ,another for storage
 
 	if n := len(rd.CommittedEntries); n > 0 {
+		log.Debugf("appliedTo index: %d", rd.CommittedEntries[n-1].Index)
 		r.raftLog.appliedTo(rd.CommittedEntries[n-1].Index)
 	}
 
@@ -598,6 +598,7 @@ func (r *raft) advance(rd Ready) {
 
 	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 && newStabled > r.raftLog.stabled {
 		r.raftLog.stableTo(newStabled)
+		log.Debugf("stableTo index: %d", newStabled)
 	}
 }
 

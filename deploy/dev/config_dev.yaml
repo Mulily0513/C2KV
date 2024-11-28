@@ -1,5 +1,5 @@
 zapConfig:
-  level: info
+  level: debug
   format: console
   prefix: "[C2KV]"
   director: c2kv-log
@@ -24,7 +24,7 @@ dbConfig:
 raftConfig:
   electionTick: 1000
   heartbeatTick: 100
-  requestTimeOut: 1000
+  requestTimeOut: 1000000
   eAddr: 172.19.0.13:2345
   iAddr: 172.19.0.13:7878
   peers:
