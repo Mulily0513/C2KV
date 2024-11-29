@@ -8,10 +8,6 @@ import (
 	"github.com/Mulily0513/C2KV/pb"
 )
 
-// ErrCompacted is returned by Storage.Entries/Compact when a requested
-// index is unavailable because it predates the last snapshot.
-var ErrCompacted = errors.New("requested index is unavailable due to compaction")
-
 //  log structure
 //  ......persist................applied|first.................committed.................stabled....................last
 //	--------|--------mem-table----------|--------------------storage slice------------------|-----raft log slice------|
@@ -26,9 +22,9 @@ type raftLog struct {
 	// Equal to the last index of stable storage.
 	stabled uint64
 
-	// 这个偏移量（u.offset）表示当前不稳定日志中的第一个条目在整个日志中的位置。举个例子，
-	// 如果 u.offset 为 10，那么不稳定日志中的第一个条目在整个日志中的位置就是第 10 个位置。
-	// raftLog在创建时，会将unstable的offset置为storage的last index + 1，
+	// 这个偏移量（u.offset）表示当前未持久化日志中的第一个条目在整个日志中的位置。举个例子，
+	// 如果 u.offset 为 10，那么未持久化日志中的第一个条目在整个日志中的位置就是第 10 个位置。
+	// raftLog在创建时，会将offset置为storage的last index + 1，
 	offset uint64
 
 	unstableEnts []*pb.Entry
@@ -73,7 +69,16 @@ func (l *raftLog) lastTerm() uint64 {
 }
 
 func (l *raftLog) term(i uint64) (uint64, error) {
-	if i < l.firstIndex() || i > l.lastIndex() {
+	if i == 0 {
+		return 0, nil
+	}
+
+	if i == l.storage.AppliedIndex() {
+		return l.storage.AppliedTerm(), nil
+	}
+
+	log.Debugf("request index:%d,appliedIndex:%d,lastIndex:%d", i, l.storage.AppliedIndex(), l.lastIndex())
+	if i < l.storage.AppliedIndex() || i > l.lastIndex() {
 		return 0, code.ErrUnavailable
 	}
 
@@ -110,7 +115,7 @@ func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 	var ents []*pb.Entry
 	if lo < l.offset {
 		stableEnts, err := l.storage.Entries(lo, min(hi, l.offset))
-		if err == ErrCompacted {
+		if errors.Is(err, code.ErrCompacted) {
 			return nil, err
 		}
 
@@ -137,9 +142,9 @@ func (l *raftLog) slice(lo, hi uint64) ([]*pb.Entry, error) {
 	return ents, nil
 }
 
-// 是否满足lo < hi (slice获取的是左闭右开区间[lo,hi)的日志切片)
-// 是否满足lo < firstIndex，否则该范围中部分日志已被压缩，无法获取。
-// 是否满足hi > lastIndex，否则该范围中部分日志还没被追加到当前节点的日志中，无法获取。
+// lo < hi ? (slice获取的是左闭右开区间[lo,hi)的日志切片)
+// lo < firstIndex ?，该范围中部分日志已被压缩，无法获取。
+// hi > lastIndex ?，该范围中部分日志还没被追加到当前节点的日志中，无法获取。
 // l.firstIndex <= lo <= hi <= l.firstIndex + len(l.entries)
 func (l *raftLog) mustCheckOutOfBounds(lo, hi uint64) error {
 	if lo > hi {
@@ -148,7 +153,7 @@ func (l *raftLog) mustCheckOutOfBounds(lo, hi uint64) error {
 	fi := l.firstIndex()
 	li := l.lastIndex()
 	if lo < fi {
-		return ErrCompacted
+		return code.ErrCompacted
 	}
 	if hi > li+1 {
 		log.Panicf("slice[%d,%d) out of bound [%d,%d]", lo, hi, fi, li)
@@ -304,9 +309,10 @@ func (l *raftLog) zeroTermOnErrCompacted(t uint64, err error) uint64 {
 	return 0
 }
 
-func (l *raftLog) maybeCommit(maxIndex, term uint64) bool {
+func (l *raftLog) maybeLeaderCommit(maxIndex, term uint64) bool {
 	if maxIndex > l.committed && l.zeroTermOnErrCompacted(l.term(maxIndex)) == term {
 		l.commitTo(maxIndex)
+		log.Debugf("leader commit index to %d", maxIndex)
 		return true
 	}
 	return false

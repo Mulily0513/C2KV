@@ -147,7 +147,7 @@ func (wal *WAL) Write(entries []*pb.Entry) error {
 	return wal.activeSegment.write(data, bytesCount, entries[0].Index)
 }
 
-// Truncate truncate掉index之后的所有segment包括当前的active segment
+// Truncate truncates all segments after the index including the current active segment.
 func (wal *WAL) Truncate(index uint64) error {
 	wal.lock.Lock()
 	defer wal.lock.Unlock()

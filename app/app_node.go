@@ -30,7 +30,7 @@ type AppNode struct {
 }
 
 func StartAppNode(localInfo config.LocalInfo, kvStorage db.Storage, raftConfig *config.RaftConfig) {
-	log.Infof("start app node(id:%d name:%s), local info : %+v", localInfo.LocalId, localInfo.LocalName, localInfo)
+	log.Infof("start app node, local info : %+v", localInfo)
 	proposeC := make(chan []byte)
 	confChangeC := make(chan pb.ConfChange)
 	kvServiceStopC := make(chan struct{})
@@ -96,19 +96,19 @@ func (an *AppNode) serveRaftNode() {
 		case rd := <-an.raftNode.Ready():
 			wg := new(sync.WaitGroup)
 			if !raft.IsEmptyHardState(rd.HardState) {
-				log.Debugf("ready, hard state: %+v", rd.HardState)
+				log.Debugf("ready, persist hard state: %+v", rd.HardState)
 				wg.Add(1)
 				go an.kvStorage.PersistHardState(rd.HardState, wg)
 			}
 
 			if len(rd.UnstableEntries) > 0 {
-				log.Debugf("ready, unstable entries:%+v", rd.UnstableEntries)
+				log.Debugf("ready, persist unstable entries: %+v", rd.UnstableEntries)
 				wg.Add(1)
 				go an.kvStorage.PersistUnstableEnts(rd.UnstableEntries, wg)
 			}
 
 			if len(rd.CommittedEntries) > 0 {
-				log.Debugf("ready, committed entries:%+v", rd.CommittedEntries)
+				log.Debugf("ready, apply committed entries: %+v", rd.CommittedEntries)
 				wg.Add(1)
 				go an.applyCommittedEnts(rd.CommittedEntries, wg)
 			}
@@ -127,7 +127,7 @@ func (an *AppNode) serveRaftNode() {
 func msgDebugExceptHeartbeat(msgs []*pb.Message) {
 	for _, m := range msgs {
 		if m.Type != pb.MsgHeartbeat && m.Type != pb.MsgHeartbeatResp {
-			log.Debugf("ready, msg:%+v", m)
+			log.Debugf("ready, send peer msg: %+v", *m)
 		}
 	}
 }

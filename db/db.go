@@ -33,6 +33,7 @@ type Storage interface {
 	Term(i uint64) (uint64, error)
 	FirstIndex() uint64
 	AppliedIndex() uint64
+	AppliedTerm() uint64
 	StableIndex() uint64
 	Truncate(index uint64) error
 
@@ -55,10 +56,8 @@ type C2KV struct {
 
 	valueLog *ValueLog
 
-	entries []*pb.Entry //stable raft log entries
-
-	lastAppliedTerm  uint64
-	lastAppliedIndex uint64
+	//stable raft log entries
+	entries []*pb.Entry
 }
 
 func dbCfgCheck(dbCfg *config.DBConfig) {
@@ -211,7 +210,7 @@ ExitLoop:
 				if err.Error() == "EOF" {
 					break
 				}
-				log.Panicf("read header failed", err)
+				log.Panicf("read header failed %v", err)
 			}
 			if header.Index < appliedIndex {
 				reader.Next(header.EntrySize)
@@ -224,7 +223,7 @@ ExitLoop:
 
 			ent, err := reader.ReadEntry(header)
 			if err != nil {
-				log.Panicf("read entry failed", err)
+				log.Panicf("read entry failed %v", err)
 			}
 
 			ents = append(ents, ent)
@@ -286,7 +285,6 @@ func (db *C2KV) Scan(lowKey []byte, highKey []byte) ([]*marshal.KV, error) {
 func (db *C2KV) Apply(kvs []*marshal.KV) (err error) {
 	lastIndex := kvs[len(kvs)-1].Data.Index
 	firstIndex := kvs[0].Data.Index
-	//log.Debugf("%+v", *db.entries[0])
 	if firstIndex != db.FirstIndex() {
 		log.Panicf("the first index of kvs is not equal to the first index of wal %v", err)
 	}
@@ -300,16 +298,13 @@ func (db *C2KV) Apply(kvs []*marshal.KV) (err error) {
 	}
 	db.maybeRotateMemTable(bytesCount)
 
+	offset := int64(lastIndex) - int64(firstIndex) + 1
 	if err = db.activeMem.ConcurrentPut(kvBytes); err != nil {
 		return err
 	}
-	if err = db.wal.WalStateSegment.Save(lastIndex); err != nil {
+	if err = db.wal.WalStateSegment.Save(lastIndex, db.entries[offset-1].Term); err != nil {
 		return err
 	}
-
-	offset := int64(lastIndex) - int64(firstIndex) + 1
-	db.lastAppliedTerm = db.entries[offset-1].Term
-	db.lastAppliedIndex = db.entries[offset-1].Index
 	db.entries = db.entries[offset:]
 	return
 }
@@ -372,11 +367,7 @@ func (db *C2KV) Term(i uint64) (uint64, error) {
 		return 0, code.ErrCompacted
 	}
 	if len(db.entries) == 0 {
-		if i == db.lastAppliedIndex {
-			return db.lastAppliedTerm, nil
-		} else {
-			return 0, code.ErrCompacted
-		}
+		return 0, code.ErrCompacted
 	}
 	offset := db.entries[0].Index
 	return db.entries[i-offset].Term, nil
@@ -397,22 +388,23 @@ func (db *C2KV) lastIndex() uint64 {
 	if len(db.entries) == 0 {
 		return 0
 	}
-	return db.entries[uint64(len(db.entries))-1].Index
+	return db.entries[len(db.entries)-1].Index
 }
 
 func (db *C2KV) AppliedIndex() uint64 {
-	if db.FirstIndex() > 1 {
-		return db.FirstIndex() - 1
-	}
-	return 0
+	return db.wal.WalStateSegment.AppliedIndex
 }
 
-func (db *C2KV) flushAllMemtable() {
+func (db *C2KV) AppliedTerm() uint64 {
+	return db.wal.WalStateSegment.AppliedTerm
+}
+
+func (db *C2KV) flushAllMemTable() {
 	//todo
 }
 
 func (db *C2KV) Close() {
-	db.flushAllMemtable()
+	db.flushAllMemTable()
 
 	if err := db.wal.Close(); err != nil {
 		log.Errorf("close wal failed %v", err)

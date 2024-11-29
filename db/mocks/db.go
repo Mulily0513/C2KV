@@ -50,6 +50,20 @@ func (mr *MockStorageMockRecorder) AppliedIndex() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppliedIndex", reflect.TypeOf((*MockStorage)(nil).AppliedIndex))
 }
 
+// AppliedTerm mocks base method.
+func (m *MockStorage) AppliedTerm() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppliedTerm")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// AppliedTerm indicates an expected call of AppliedTerm.
+func (mr *MockStorageMockRecorder) AppliedTerm() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppliedTerm", reflect.TypeOf((*MockStorage)(nil).AppliedTerm))
+}
+
 // Apply mocks base method.
 func (m *MockStorage) Apply(kvs []*marshal.KV) error {
 	m.ctrl.T.Helper()

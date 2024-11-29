@@ -15,6 +15,8 @@
 package raft
 
 import (
+	"errors"
+	"github.com/Mulily0513/C2KV/code"
 	"github.com/Mulily0513/C2KV/config"
 	"github.com/Mulily0513/C2KV/db"
 	"github.com/Mulily0513/C2KV/db/mocks"
@@ -306,8 +308,8 @@ func TestSlice(t *testing.T) {
 					tt.raftLog.truncateAndAppend([]*pb.Entry{{Index: offset + i, Term: offset + i}})
 				}
 				g, err := tt.raftLog.slice(tt.from, tt.to)
-				if int(tt.from) < int(tt.raftLog.firstIndex()) && err != ErrCompacted {
-					t.Fatalf("#%d: err = %v, want %v", j, err, ErrCompacted)
+				if int(tt.from) < int(tt.raftLog.firstIndex()) && !errors.Is(err, code.ErrCompacted) {
+					t.Fatalf("#%d: err = %v, want %v", j, err, code.ErrCompacted)
 				}
 				if !reflect.DeepEqual(g, tt.w) {
 					t.Errorf("#%d: from %d to %d = %v, want %v", j, tt.from, tt.to, g, tt.w)
@@ -510,7 +512,7 @@ func TestHasNextCommittedEnts(t *testing.T) {
 		raftLog := newRaftLog(MockSpecStorage(t, 0, 1, 3, 0, 0))
 		raftLog.committed = 3
 		raftLog.truncateAndAppend(ents)
-		raftLog.maybeCommit(5, 1)
+		raftLog.maybeLeaderCommit(5, 1)
 		raftLog.appliedTo(tt.applied)
 
 		hasNext := raftLog.hasNextCommittedEnts()
@@ -541,7 +543,7 @@ func TestNextCommittedEnts(t *testing.T) {
 			raftLog := newRaftLog(MockSpecStorage(t, 0, 1, 3, 0, 0))
 			raftLog.committed = 3
 			raftLog.truncateAndAppend(ents)
-			raftLog.maybeCommit(5, 1)
+			raftLog.maybeLeaderCommit(5, 1)
 			raftLog.appliedTo(tt.applied)
 
 			nents := raftLog.nextCommittedEnts()

@@ -22,7 +22,7 @@ func TestSegmentFile_newSegmentFile(t *testing.T) {
 	_ = segment.remove()
 }
 
-func TestSegmentFile_Write(t *testing.T) {
+func TestSegmentFile_BlockWrite(t *testing.T) {
 	//todo
 	// 1、写入<block4
 	// 2、写入>block4，<block8
@@ -66,6 +66,34 @@ func TestSegmentFile_Write(t *testing.T) {
 	}
 }
 
+func TestSegmentFile_SerialWrite(t *testing.T) {
+	tests := []struct {
+		name string
+		ents []*pb.Entry
+		nums int
+	}{
+		{"<block4",
+			mocks.Entries1,
+			3,
+		},
+	}
+	for _, tt := range tests {
+		var totalCounts int
+		t.Run(tt.name, func(t *testing.T) {
+			segment := newSegmentFile(mocks.TestWALCfg1Size)
+			data, bytesCount := mocks.MarshalWALEntries(tt.ents)
+			for i := 0; i < tt.nums; i++ {
+				if err := segment.write(data, bytesCount, tt.ents[0].Index); err != nil {
+					t.Error(err)
+				}
+				totalCounts += bytesCount
+			}
+			assert.EqualValues(t, len(segment.blocks), totalCounts+segment.BlocksRemainSize)
+			assert.EqualValues(t, totalCounts, segment.blocksOffset)
+		})
+	}
+}
+
 func TestSegmentReader_Block4(t *testing.T) {
 	segment := newSegmentFile(mocks.TestWALCfg1Size)
 	MockSegmentWrite(mocks.Entries_20_250_3KB, segment)
@@ -92,7 +120,6 @@ func TestSegmentReader_Blocks(t *testing.T) {
 	MockSegmentWrite(mocks.Entries61MB, segment)
 	reader := NewSegmentReader(segment)
 	ents := make([]*pb.Entry, 0)
-	//确保读出的数据正确
 	for {
 		header, err := reader.ReadHeader()
 		if err != nil && err.Error() == "EOF" {
@@ -172,8 +199,9 @@ func TestWALStateSegment(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	walSeg.Save(1)
+	walSeg.Save(1, 2)
 	assert.EqualValues(t, 1, walSeg.AppliedIndex)
+	assert.EqualValues(t, 2, walSeg.AppliedTerm)
 
 	//test  decode
 	fpath := walSeg.fd.Name()
@@ -183,6 +211,7 @@ func TestWALStateSegment(t *testing.T) {
 		panic(err)
 	}
 	assert.EqualValues(t, 1, walSeg.AppliedIndex)
+	assert.EqualValues(t, 2, walSeg.AppliedTerm)
 	walSeg.Remove()
 }
 

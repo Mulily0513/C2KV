@@ -352,15 +352,15 @@ func (r *raft) handleMsgUnreachableStatus(m *pb.Message) {
 }
 
 func (r *raft) handleAppendResponse(m *pb.Message) {
-	log.Debugf("start handle append response")
 	pr := r.trk.Progress[m.From]
 	if pr == nil {
 		log.Errorf("%x no progress available for %x", r.id, m.From)
 		return
 	}
 	pr.RecentActive = true
+	log.Debugf("get append response from %d, msg:%+v", m.From, *m)
 	if m.Reject {
-		log.Infof("%x received MsgAppResp(rejected, hint: (index %d, term %d)) from %x for index %d", r.id, m.RejectHint, m.LogTerm, m.From, m.Index)
+		log.Infof("(node:%x) received MsgAppResp(rejected, hint: (index %d, term %d)) from (node:%x index:%d)", r.id, m.RejectHint, m.LogTerm, m.From, m.Index)
 		nextProbeIdx := m.RejectHint
 		//在正常情况下，领导者的日志比追随者的日志长，追随者的日志是领导者日志的前缀。在这种情况下，第一次探测（probe）会揭示追随者的日志结束位置（即RejectHint），随后的探测会成功。
 		//然而，在网络分区或系统过载的情况下，可能会出现较大的不一致日志尾部，这会导致探测过程非常耗时，甚至可能导致服务中断。
@@ -388,17 +388,10 @@ func (r *raft) handleAppendResponse(m *pb.Message) {
 		return
 	}
 
-	//update next、match index
+	//update peer next、match index
 	if pr.MaybeUpdate(m.Index) {
-		//switch {
-		////如果该follower处于StateProbe状态且现在跟上了进度，则将其转为StateReplica状态
-		//case pr.State == tracker.StateProbe:
-		//	pr.BecomeReplicate()
-		//case pr.State == tracker.StateReplicate:
-		//}
-		if r.maybeCommit() {
-			log.Infof("commit update success")
-			//r.bcastAppend()
+		log.Debugf("update peer progress success, : %+v", *pr)
+		if r.maybeLeaderCommit() {
 		}
 	}
 }
@@ -428,12 +421,17 @@ func (r *raft) bcastAppend() {
 
 func (r *raft) sendAppend(to uint64) {
 	pr := r.trk.Progress[to]
+	log.Debugf("prepare send app msg,peer progress: %+v", *pr)
 	m := &pb.Message{To: to}
 	prevLogIndex := pr.Next - 1
-	prevLogTerm, errt := r.raftLog.term(prevLogIndex)
-	ents, erre := r.raftLog.slice(pr.Next, r.raftLog.lastIndex()+1)
-	if errt != nil || erre != nil {
-		// todo send snapshot if we failed to get term or entries
+	prevLogTerm, err := r.raftLog.term(prevLogIndex)
+	if err != nil {
+		log.Errorf("send append failed get prevlogTerm: %v", err)
+	}
+	ents, err := r.raftLog.slice(pr.Next, r.raftLog.lastIndex()+1)
+	if err != nil {
+		//todo send snapshot?
+		log.Errorf("send append failed get entries: %v", err)
 	}
 
 	if len(ents) == 0 {
@@ -452,9 +450,9 @@ func (r *raft) sendAppend(to uint64) {
 	return
 }
 
-func (r *raft) maybeCommit() bool {
+func (r *raft) maybeLeaderCommit() bool {
 	index := r.trk.Committed()
-	return r.raftLog.maybeCommit(index, r.Term)
+	return r.raftLog.maybeLeaderCommit(index, r.Term)
 }
 
 // ------------------ follower behavior ------------------
@@ -469,6 +467,7 @@ func (r *raft) handleHeartbeat(m *pb.Message) {
 func (r *raft) handleAppendEntries(m *pb.Message) {
 	//如果用于日志匹配的条目在committed之前，说明这是一条过期的消息，因此直接返回MsgAppResp消息，
 	//并将消息的Index字段置为committed的值，以让leader快速更新该follower的next index。
+	log.Debugf("get append msg: %+v", *m)
 	if m.Index < r.raftLog.committed {
 		r.send(&pb.Message{To: m.From, From: r.id, Type: pb.MsgAppResp, Index: r.raftLog.committed, Term: r.Term})
 		return
@@ -479,8 +478,8 @@ func (r *raft) handleAppendEntries(m *pb.Message) {
 		return
 	}
 
-	log.Infof("node(id:%x logterm: %d, index: %d) rejected MsgApp (logterm: %d, index: %d) from %x",
-		r.id, r.raftLog.zeroTermOnErrCompacted(r.raftLog.term(m.Index)), m.Index, m.LogTerm, m.Index, m.From)
+	log.Infof("node(id:%x logterm: %d, index: %d) rejected MsgApp (node:%x, logterm: %d, index: %d)",
+		r.id, r.raftLog.zeroTermOnErrCompacted(r.raftLog.term(r.raftLog.lastIndex())), r.raftLog.lastIndex(), m.From, m.LogTerm, m.Index)
 
 	hintIndex := min(m.Index, r.raftLog.lastIndex())
 	hintIndex = r.raftLog.findConflictIdxByTerm(hintIndex, m.LogTerm)
@@ -530,7 +529,7 @@ func (r *raft) handleRequestVoteResponse(m *pb.Message) {
 	switch res {
 	case quorum.VoteWon:
 		r.becomeLeader()
-		r.bcastAppend()
+		//r.bcastAppend()
 	case quorum.VoteLost:
 		r.becomeFollower(r.Term, None)
 	}
@@ -581,24 +580,16 @@ func (r *raft) send(m *pb.Message) {
 }
 
 func (r *raft) advance(rd Ready) {
-	// todo there have two choice to update committed index or stable index
-	// one for ready ,another for storage
-
 	if n := len(rd.CommittedEntries); n > 0 {
 		log.Debugf("appliedTo index: %d", rd.CommittedEntries[n-1].Index)
 		r.raftLog.appliedTo(rd.CommittedEntries[n-1].Index)
 	}
 
-	//todo
-	//if n := len(rd.UnstableEntries);n>0{
-	//	if newStabled := rd.UnstableEntries[n-1].Index; newStabled > 0 && newStabled > r.raftLog.stabled {
-	//		r.raftLog.stableTo(newStabled)
-	//	}
-	//}
-
-	if newStabled := r.raftLog.storage.StableIndex(); newStabled > 0 && newStabled > r.raftLog.stabled {
-		r.raftLog.stableTo(newStabled)
-		log.Debugf("stableTo index: %d", newStabled)
+	if n := len(rd.UnstableEntries); n > 0 {
+		if newStabled := rd.UnstableEntries[n-1].Index; newStabled > 0 && newStabled > r.raftLog.stabled {
+			log.Debugf("stableTo index: %d", newStabled)
+			r.raftLog.stableTo(newStabled)
+		}
 	}
 }
 

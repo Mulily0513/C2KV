@@ -204,6 +204,7 @@ var Entries61MB = CreateEntries(50000, 250)
 var Entries133MB = CreateEntries(500000, 250)
 var Entries1MB = CreateEntries(5000, 250)
 var Entries5 = CreateEntries(5, 250)
+var Entries1 = CreateEntries(1, 250)
 var Entries_20_250_3KB = CreateEntries(20, 250)
 var ENTS_5GROUP_5000NUMS = CreateEntriesSlice(5, 5000, 250)
 

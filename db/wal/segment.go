@@ -20,7 +20,8 @@ const (
 	defaultMinLogIndex  = zero
 	hSSegmentHeaderSize = 4
 	persistIndexSize    = 8
-	applyIndexSize
+	applyIndexSize      = 8
+	applyTermSize       = 8
 )
 
 type segment struct {
@@ -92,7 +93,7 @@ func (seg *segment) write(data []byte, bytesCount int, firstIndex uint64) (err e
 	}
 
 	if bytesCount < seg.BlocksRemainSize {
-		copy(seg.blocks[seg.blocksOffset:bytesCount], data)
+		copy(seg.blocks[seg.blocksOffset:seg.blocksOffset+bytesCount], data)
 	} else {
 		// The current block is full, flush and allocate a new block.
 		seg.segmentOffset += len(seg.blocks)
@@ -378,6 +379,7 @@ func (seg *RaftStateSegment) Remove() error {
 type WalStateSegment struct {
 	fd           *os.File
 	AppliedIndex uint64
+	AppliedTerm  uint64
 	blocks       []byte
 }
 
@@ -400,9 +402,10 @@ func OpenWalStateSegment(fp string) (kvSeg *WalStateSegment, err error) {
 	return kvSeg, nil
 }
 
-func (seg *WalStateSegment) Save(appliedIndex uint64) (err error) {
+func (seg *WalStateSegment) Save(appliedIndex, appliedTerm uint64) (err error) {
 	if appliedIndex != seg.AppliedIndex && appliedIndex > 0 {
 		seg.AppliedIndex = appliedIndex
+		seg.AppliedTerm = appliedTerm
 	}
 
 	data := seg.encodeWalStateSegment()
@@ -411,19 +414,21 @@ func (seg *WalStateSegment) Save(appliedIndex uint64) (err error) {
 		return
 	}
 	if _, err = seg.fd.Write(seg.blocks); err != nil {
-		return err
+		return
 	}
 	return nil
 }
 
 func (seg *WalStateSegment) encodeWalStateSegment() []byte {
-	buf := make([]byte, applyIndexSize)
+	buf := make([]byte, applyIndexSize+applyTermSize)
 	binary.LittleEndian.PutUint64(buf[zero:applyIndexSize], seg.AppliedIndex)
+	binary.LittleEndian.PutUint64(buf[applyIndexSize:applyIndexSize+applyTermSize], seg.AppliedTerm)
 	return buf
 }
 
 func (seg *WalStateSegment) decodeWalStateSegment() {
 	seg.AppliedIndex = binary.LittleEndian.Uint64(seg.blocks[zero:applyIndexSize])
+	seg.AppliedTerm = binary.LittleEndian.Uint64(seg.blocks[applyIndexSize : applyIndexSize+applyTermSize])
 	return
 }
 
