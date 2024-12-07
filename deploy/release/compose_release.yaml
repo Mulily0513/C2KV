@@ -1,0 +1,84 @@
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Docker compose reference guide at
+# https://docs.docker.com/compose/compose-file/
+
+# Here the instructions define your application as two services called "todo-app" and “todo-database”
+# The service “todo-app” is built from the Dockerfile in the /app directory,
+# and the service “todo-database” uses the official MongoDB image
+# from Docker Hub - https://hub.docker.com/_/mongo.
+# You can add other services your application may depend on here.
+
+services:
+  node1:
+    build:
+      context: ../..
+      dockerfile: ./deploy/dev/dockerfile-dev
+    ports:
+    # dlv port
+      - 40001:40000
+    # ssh port
+      - 122:22
+    tty: true
+    networks:
+      mynetwork:
+        ipv4_address: 172.19.0.11
+    volumes:
+      - ./:/app/src
+      - ./config.yaml:/app/config.yaml
+    environment:
+      - C2KV_NODE_ID=1
+      - C2KV_NODE_NAME=node1
+      - C2KV_NODE_IA=172.19.0.11:7878
+      - C2KV_NODE_EA=172.19.0.11:2345
+      - C2KV_NODE_PEERS=2-node2-172.19.0.12:7878,3-node3-172.19.0.13:7878
+  node2:
+    build:
+      context: ../..
+      dockerfile: ../dockerfile-dev
+    ports:
+      # dlv port
+      - 40002:40000
+      # ssh port
+      - 222:22
+    tty: true
+    networks:
+      mynetwork:
+        ipv4_address: 172.19.0.12
+    volumes:
+      - ./:/app/src
+      - ./config.yaml:/app/config.yaml
+    environment:
+      - C2KV_NODE_ID=2
+      - C2KV_NODE_NAME=node2
+      - C2KV_NODE_IA=172.19.0.12:7878
+      - C2KV_NODE_EA=172.19.0.12:2345
+      - C2KV_NODE_PEERS=1-node1-172.19.0.11:7878,3-node3-172.19.0.13:7878
+  node3:
+    build:
+      context: ../..
+      dockerfile: ../dockerfile-dev
+    ports:
+      # dlv port
+      - 40003:40000
+      # ssh port
+      - 322:22
+    tty: true
+    networks:
+      mynetwork:
+        ipv4_address: 172.19.0.13
+    volumes:
+      - ./:/app/src
+      - ./config.yaml:/app/config.yaml
+    environment:
+      - C2KV_NODE_ID=3
+      - C2KV_NODE_NAME=node3
+      - C2KV_NODE_IA=172.19.0.13:7878
+      - C2KV_NODE_EA=172.19.0.13:2345
+      - C2KV_NODE_PEERS=2-node2-172.19.0.12:7878,1-node1-172.19.0.11:7878
+networks:
+  mynetwork:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1

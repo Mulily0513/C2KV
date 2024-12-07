@@ -1,0 +1,42 @@
+zapConfig:
+  level: debug
+  format: console
+  prefix: "[C2KV]"
+  director: c2kv-log
+  showLine: true
+  encodeLevel: LowercaseColorLevelEncoder
+  logInConsole: "true"
+  maxAge: 10
+dbConfig:
+  dbPath: "./data"
+  walConfig:
+    walDirPath: "./data/wal"
+    segmentSize: 60
+  memConfig:
+    memTableSize: 2048
+    memTablePipeSize: 1
+    memTableNums: 1
+    concurrency: 5
+  valueLogConfig:
+    valueLogDir: "./data/vlog"
+    partitionNums: 3
+    sstSize: 60
+raftConfig:
+  electionTick: 1000
+  heartbeatTick: 100
+  requestTimeOut: 1000000
+  eAddr: 172.19.0.13:2345
+  iAddr: 172.19.0.13:7878
+  peers:
+    - name: node1
+      id: 1
+      iAddr: 172.19.0.11:7878
+      eAddr: 172.19.0.11:2345
+    - name: node2
+      id: 2
+      iAddr: 172.19.0.12:7878
+      eAddr: 172.19.0.12:2345
+    - name: node3
+      id: 3
+      iAddr: 172.19.0.13:7878
+      eAddr: 172.19.0.13:2345

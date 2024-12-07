@@ -1,0 +1,26 @@
+FROM golang:1.20
+# intsall dlv
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.20.0
+
+# install system tools
+RUN apt-get update && apt-get install -y ssh && apt-get install -y bash &&  apt-get install -y vim && apt-get install -y net-tools
+
+# intsall SSH
+RUN mkdir /var/run/sshd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN echo 'root:root1234' | chpasswd
+
+# build c2kv
+RUN mkdir -p /app/src
+COPY ../.. /app/src
+COPY config.yaml /app/
+COPY --chmod=0755 ../../scripts /app/
+ENV GOPROXY=https://goproxy.io,direct
+RUN cd /app/src && go build -o ../c2kv
+
+#ENTRYPOINT ["/app/run_dev.sh"]
+
+WORKDIR /app
+
+# c2kv expose ports
+EXPOSE 2345 7878
