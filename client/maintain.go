@@ -16,13 +16,13 @@ package client
 
 import (
 	"context"
-	pb "github.com/Mulily0513/C2KV/api/c2kvserverpb"
+	"github.com/Mulily0513/C2KV/c2kvserverpb"
 	"google.golang.org/grpc"
 )
 
 type (
-	StatusRequest  pb.StatusRequest
-	StatusResponse pb.StatusResponse
+	StatusRequest  c2kvserverpb.StatusRequest
+	StatusResponse c2kvserverpb.StatusResponse
 )
 
 type Maintain interface {
@@ -31,12 +31,12 @@ type Maintain interface {
 }
 
 type maintain struct {
-	remote   pb.MaintenanceClient
+	remote   c2kvserverpb.MaintenanceClient
 	callOpts []grpc.CallOption
 }
 
 func NewMaintain(c *Client) Maintain {
-	api := &maintain{remote: pb.NewMaintenanceClient(c.conn)}
+	api := &maintain{remote: c2kvserverpb.NewMaintenanceClient(c.conn)}
 	if c != nil {
 		api.callOpts = c.callOpts
 	}
@@ -44,7 +44,7 @@ func NewMaintain(c *Client) Maintain {
 }
 
 func (m maintain) Status(ctx context.Context) (*StatusResponse, error) {
-	resp, err := m.remote.Status(ctx, &pb.StatusRequest{}, m.callOpts...)
+	resp, err := m.remote.Status(ctx, &c2kvserverpb.StatusRequest{}, m.callOpts...)
 	if err == nil {
 		return (*StatusResponse)(resp), nil
 	}

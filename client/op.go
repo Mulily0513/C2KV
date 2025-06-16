@@ -14,7 +14,9 @@
 
 package client
 
-import pb "github.com/Mulily0513/C2KV/api/c2kvserverpb"
+import (
+	pb "github.com/Mulily0513/C2KV/c2kvserverpb"
+)
 
 type opType int
 

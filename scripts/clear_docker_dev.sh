@@ -7,5 +7,4 @@ if [ -n "$(docker images -q)" ]; then
 fi
 if docker network ls | grep -q dev_mynetwork; then
     docker network rm dev_mynetwork
-    echo "delete dev_mynetwork success。"
 fi

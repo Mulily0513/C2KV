@@ -16,16 +16,15 @@ package client
 
 import (
 	"context"
-
-	pb "github.com/Mulily0513/C2KV/api/c2kvserverpb"
+	"github.com/Mulily0513/C2KV/c2kvserverpb"
 
 	"google.golang.org/grpc"
 )
 
 type (
-	PutResponse    pb.PutResponse
-	GetResponse    pb.RangeResponse
-	DeleteResponse pb.DeleteRangeResponse
+	PutResponse    c2kvserverpb.PutResponse
+	GetResponse    c2kvserverpb.RangeResponse
+	DeleteResponse c2kvserverpb.DeleteRangeResponse
 )
 
 type KV interface {
@@ -57,12 +56,12 @@ type KV interface {
 }
 
 type kv struct {
-	remote   pb.KVClient
+	remote   c2kvserverpb.KVClient
 	callOpts []grpc.CallOption
 }
 
 func NewKV(c *Client) KV {
-	api := &kv{remote: pb.NewKVClient(c.conn)}
+	api := &kv{remote: c2kvserverpb.NewKVClient(c.conn)}
 	if c != nil {
 		api.callOpts = c.callOpts
 	}
@@ -88,21 +87,21 @@ func (kv *kv) Do(ctx context.Context, op Op) (OpResponse, error) {
 	var err error
 	switch op.t {
 	case tRange:
-		var resp *pb.RangeResponse
+		var resp *c2kvserverpb.RangeResponse
 		resp, err = kv.remote.Range(ctx, op.toRangeRequest(), kv.callOpts...)
 		if err == nil {
 			return OpResponse{get: (*GetResponse)(resp)}, nil
 		}
 	case tPut:
-		var resp *pb.PutResponse
-		r := &pb.PutRequest{Key: op.key, Value: op.val}
+		var resp *c2kvserverpb.PutResponse
+		r := &c2kvserverpb.PutRequest{Key: op.key, Value: op.val}
 		resp, err = kv.remote.Put(ctx, r, kv.callOpts...)
 		if err == nil {
 			return OpResponse{put: (*PutResponse)(resp)}, nil
 		}
 	case tDeleteRange:
-		var resp *pb.DeleteRangeResponse
-		r := &pb.DeleteRangeRequest{Key: op.key, RangeEnd: op.end, PrevKv: op.prevKV}
+		var resp *c2kvserverpb.DeleteRangeResponse
+		r := &c2kvserverpb.DeleteRangeRequest{Key: op.key, RangeEnd: op.end, PrevKv: op.prevKV}
 		resp, err = kv.remote.DeleteRange(ctx, r, kv.callOpts...)
 		if err == nil {
 			return OpResponse{del: (*DeleteResponse)(resp)}, nil

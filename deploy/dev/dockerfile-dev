@@ -1,28 +1,28 @@
-FROM golang:1.20
-# intsall dlv
-RUN go install github.com/go-delve/delve/cmd/dlv@v1.20.0
+FROM golang:1.24
 
-# install system tools
-RUN apt-get update && apt-get install -y ssh && apt-get install -y bash &&  apt-get install -y vim && apt-get install -y net-tools
-
-# intsall SSH
-RUN mkdir /var/run/sshd
-RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-RUN echo 'root:root1234' | chpasswd
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.20.0 && \
+    # system-tool
+    apt-get update && \
+    apt-get install -y ssh &&  \
+    apt-get install -y bash &&  \
+    apt-get install -y vim &&  \
+    apt-get install -y net-tools && \
+    # install  ssh
+    mkdir /var/run/sshd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    echo 'root:root1234' | chpasswd
 
 # build c2kv
-RUN mkdir -p /app/src
-RUN mkdir -p /app/scripts
-COPY . /app/src
-COPY ./deploy/dev/config_dev.yaml /app/
-COPY ./scripts /app/scripts/
-RUN chmod +x /app/scripts/*.sh
-COPY ./scripts/run_dev.sh /app/
 ENV GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
-RUN cd /app/src && go build -o ../c2kv
+WORKDIR /code/src
+COPY . .
+COPY ./deploy/dev/config_dev.yaml /code/
+WORKDIR /code/src/src
+RUN go build -o c2kv && mv c2kv /usr/bin/
+COPY ./scripts /code/scripts
+RUN chmod +x /code/scripts/*.sh
 
-CMD /usr/sbin/sshd -D
+# start c2kv
+EXPOSE 2345 7878 22 40000
 #ENTRYPOINT ["/app/scripts/run_dev.sh"]
-
-# c2kv expose ports
-EXPOSE 2345 7878
+CMD /usr/sbin/sshd -D

@@ -1,5 +1,5 @@
 .PHONY: rebuild clear_docker_env build
-build:
+dev_build:
 	docker compose -f ./deploy/dev/compose_dev.yaml -p c2kv-dev up -d
 
 rebuild:clear_docker_env
