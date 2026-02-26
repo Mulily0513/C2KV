@@ -1,0 +1,76 @@
+name: Nightly Stability
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-stability-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24.x"
+
+jobs:
+  race-core:
+    name: Race (core packages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Run race tests
+        run: |
+          go test -race -count=1 -timeout=30m \
+            ./internal/app/... \
+            ./internal/raft/... \
+            ./internal/transport/... \
+            ./internal/db/wal \
+            ./internal/db/partition \
+            ./pkg/client/...
+
+  full-snapshot:
+    name: Full Test Snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            eval/ycsb-runner/go.sum
+
+      - name: Test root module (exclude iooperator benchmark test packages)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t pkgs < <(go list ./... | grep -v 'internal/db/iooperator/iobenchmark_test' || true)
+          if [ "${#pkgs[@]}" -eq 0 ]; then
+            echo "No packages found"
+            exit 0
+          fi
+          go test -count=1 -shuffle=on -timeout=40m "${pkgs[@]}"
+
+      - name: Test ycsb-runner module
+        working-directory: eval/ycsb-runner
+        run: go test -count=1 ./...

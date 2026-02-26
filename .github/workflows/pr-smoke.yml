@@ -1,0 +1,140 @@
+name: PR Smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "deploy/dev/**"
+      - "eval/benchmark/**"
+      - "eval/ycsb-runner/**"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "deploy/dev/**"
+      - "eval/benchmark/**"
+      - "eval/ycsb-runner/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+concurrency:
+  group: pr-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24.x"
+  C2KV_ENDPOINTS: "127.0.0.1:2341,127.0.0.1:2342,127.0.0.1:2343"
+
+jobs:
+  docker-smoke:
+    name: Docker 3-Node Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            eval/ycsb-runner/go.sum
+
+      - name: Docker info
+        run: |
+          docker version
+          docker compose version
+
+      - name: Bring up C2KV 3-node cluster
+        run: docker compose -f deploy/dev/compose_dev.yaml -p c2kv-ci up -d --build
+
+      - name: Wait for cluster ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 45); do
+            if go run ./eval/benchmark put \
+              --endpoints="${C2KV_ENDPOINTS}" \
+              --total=1 \
+              --clients=1 \
+              --req-timeout=2s >/tmp/c2kv_smoke_probe.log 2>&1; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" -ne 1 ]; then
+            echo "Cluster did not become ready in time"
+            cat /tmp/c2kv_smoke_probe.log || true
+            docker compose -f deploy/dev/compose_dev.yaml -p c2kv-ci logs --no-color
+            exit 1
+          fi
+
+      - name: Benchmark smoke (put/range/mixed)
+        run: |
+          go run ./eval/benchmark put \
+            --endpoints="${C2KV_ENDPOINTS}" \
+            --total=300 \
+            --clients=8 \
+            --key-space-size=200 \
+            --req-timeout=5s
+
+          go run ./eval/benchmark range \
+            --endpoints="${C2KV_ENDPOINTS}" \
+            --total=300 \
+            --clients=8 \
+            --key-space-size=200 \
+            --range-size=1 \
+            --req-timeout=5s
+
+          go run ./eval/benchmark mixed \
+            --endpoints="${C2KV_ENDPOINTS}" \
+            --total=500 \
+            --clients=8 \
+            --key-space-size=300 \
+            --read-percent=50 \
+            --warmup-writes=200 \
+            --req-timeout=5s
+
+      - name: YCSB smoke (load + run)
+        working-directory: eval/ycsb-runner
+        run: |
+          go run . load c2kv \
+            -P workloads/workloada \
+            -p c2kv.endpoints="${C2KV_ENDPOINTS}" \
+            -p c2kv.request_timeout=5s \
+            -p threadcount=4 \
+            -p recordcount=200 \
+            -p operationcount=201
+
+          go run . run c2kv \
+            -P workloads/workloada \
+            -p c2kv.endpoints="${C2KV_ENDPOINTS}" \
+            -p c2kv.request_timeout=5s \
+            -p threadcount=4 \
+            -p recordcount=200 \
+            -p operationcount=400
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f deploy/dev/compose_dev.yaml -p c2kv-ci logs --no-color
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker compose -f deploy/dev/compose_dev.yaml -p c2kv-ci down -v --remove-orphans
+          docker system prune -af --volumes || true

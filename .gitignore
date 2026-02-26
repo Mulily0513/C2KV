@@ -1,0 +1,24 @@
+# IDE
+.idea/
+.vscode/
+
+# Local agent/cache
+.playwright-cli/
+.claude/
+CLAUDE.md
+
+# Build/test
+bin/
+dist/
+*.out
+*.test
+coverage.*
+
+# Runtime data and logs
+var/
+c2kv-log/
+internal/log/log/
+internal/raft/log/
+
+# OS noise
+.DS_Store

@@ -1,0 +1,97 @@
+name: PR Fast
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "makefile"
+      - "eval/benchmark/**"
+      - "eval/ycsb-runner/**"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "makefile"
+      - "eval/benchmark/**"
+      - "eval/ycsb-runner/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+concurrency:
+  group: pr-fast-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24.x"
+
+jobs:
+  fast-checks:
+    name: Fast Checks (fmt/vet/test/build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            eval/ycsb-runner/go.sum
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="$(git ls-files '*.go')"
+          if [ -z "$files" ]; then
+            exit 0
+          fi
+          unformatted="$(gofmt -l $files)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Download root dependencies
+        run: go mod download
+
+      - name: Vet and short tests (root module)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t pkgs < <(go list ./... | grep -v 'internal/db/iooperator/iobenchmark_test' || true)
+          if [ "${#pkgs[@]}" -eq 0 ]; then
+            echo "No packages found"
+            exit 0
+          fi
+          go vet -composites=false "${pkgs[@]}"
+          go test -count=1 -shuffle=on -short -timeout=20m "${pkgs[@]}"
+
+      - name: Build main binaries
+        run: |
+          go build -o ./bin/c2kv ./cmd/c2kv
+          go build -o ./bin/c2kvctl ./cmd/c2kvctl
+
+      - name: Benchmark module tests
+        run: go test -count=1 ./eval/benchmark/...
+
+      - name: YCSB runner module tests
+        working-directory: eval/ycsb-runner
+        run: |
+          go mod download
+          go test -count=1 ./...
+          go build ./...

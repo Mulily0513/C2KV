@@ -1,0 +1,120 @@
+name: Perf Compare
+
+on:
+  workflow_dispatch:
+    inputs:
+      clients_list:
+        description: "Client counts list (space separated)"
+        required: false
+        default: "1 16 64"
+      val_sizes:
+        description: "Value sizes list in bytes (space separated)"
+        required: false
+        default: "16 128 1024"
+      repeats:
+        description: "Repeats per combination"
+        required: false
+        default: "3"
+      record_count:
+        description: "YCSB record count"
+        required: false
+        default: "10000"
+      op_count:
+        description: "YCSB operation count"
+        required: false
+        default: "4000"
+  schedule:
+    - cron: "0 3 * * 0"
+
+concurrency:
+  group: perf-compare-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24.x"
+  C2KV_ENDPOINTS: "127.0.0.1:2341,127.0.0.1:2342,127.0.0.1:2343"
+  ETCD_ENDPOINTS: "127.0.0.1:2379,127.0.0.1:22379,127.0.0.1:32379"
+  MATRIX_CLIENTS: ${{ inputs.clients_list || '1 16 64' }}
+  MATRIX_VAL_SIZES: ${{ inputs.val_sizes || '16 128 1024' }}
+  MATRIX_REPEATS: ${{ inputs.repeats || '3' }}
+  MATRIX_RECORD_COUNT: ${{ inputs.record_count || '10000' }}
+  MATRIX_OP_COUNT: ${{ inputs.op_count || '4000' }}
+
+jobs:
+  ycsb-compare:
+    name: YCSB Compare Matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            eval/ycsb-runner/go.sum
+
+      - name: Docker info
+        run: |
+          docker version
+          docker compose version
+
+      - name: Bring up C2KV cluster
+        run: docker compose -f deploy/dev/compose_dev.yaml -p c2kv-perf up -d --build
+
+      - name: Bring up etcd cluster
+        run: docker compose -f eval/docker-compose.etcd.yml -p c2kv-etcd up -d
+
+      - name: Run YCSB compare matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="ci-matrix-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "MATRIX_TAG=$tag" >> "$GITHUB_ENV"
+          cd eval/ycsb-runner
+          MATRIX_TAG="$tag" \
+          CLIENTS_LIST="${MATRIX_CLIENTS}" \
+          VAL_SIZES="${MATRIX_VAL_SIZES}" \
+          REPEATS="${MATRIX_REPEATS}" \
+          RECORD_COUNT="${MATRIX_RECORD_COUNT}" \
+          OP_COUNT="${MATRIX_OP_COUNT}" \
+          INTERVAL=5 \
+          TARGET=0 \
+          ./scripts/run_compare_matrix.sh
+
+      - name: Show matrix summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="var/bench-results/ycsb-matrix/${MATRIX_TAG}/matrix_summary.csv"
+          echo "summary: $summary"
+          cat "$summary"
+
+      - name: Upload matrix artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ycsb-matrix-${{ env.MATRIX_TAG }}
+          path: |
+            var/bench-results/ycsb-matrix/${{ env.MATRIX_TAG }}
+            var/bench-results/ycsb-compare/${{ env.MATRIX_TAG }}-*
+          if-no-files-found: error
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose -f deploy/dev/compose_dev.yaml -p c2kv-perf logs --no-color || true
+          docker compose -f eval/docker-compose.etcd.yml -p c2kv-etcd logs --no-color || true
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker compose -f deploy/dev/compose_dev.yaml -p c2kv-perf down -v --remove-orphans
+          docker compose -f eval/docker-compose.etcd.yml -p c2kv-etcd down -v --remove-orphans
+          docker system prune -af --volumes || true

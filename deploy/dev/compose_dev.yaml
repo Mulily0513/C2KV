@@ -21,17 +21,18 @@ services:
     # rpc port
       - 2341:2345
     tty: true
+    command: /bin/sh -lc "/usr/sbin/sshd; exec /usr/bin/c2kv -m ${C2KV_RUN_MODE:-release} -c ${C2KV_CONFIG_PATH:-/code/config_dev.yaml}"
     volumes:
       - ../..:/app/src
     networks:
       mynetwork:
-        ipv4_address: 172.19.0.11
+        ipv4_address: 172.29.0.11
     environment:
       - C2KV_NODE_ID=1
       - C2KV_NODE_NAME=node1
-      - C2KV_NODE_IA=172.19.0.11:7878
-      - C2KV_NODE_EA=172.19.0.11:2345
-      - C2KV_NODE_PEERS=2-node2-172.19.0.12:7878,3-node3-172.19.0.13:7878
+      - C2KV_NODE_IA=172.29.0.11:7878
+      - C2KV_NODE_EA=172.29.0.11:2345
+      - C2KV_NODE_PEERS=2-node2-172.29.0.12:7878,3-node3-172.29.0.13:7878
   node2:
     build:
       context: ../..
@@ -44,17 +45,18 @@ services:
       # rpc port
       - 2342:2345
     tty: true
+    command: /bin/sh -lc "/usr/sbin/sshd; exec /usr/bin/c2kv -m ${C2KV_RUN_MODE:-release} -c ${C2KV_CONFIG_PATH:-/code/config_dev.yaml}"
     volumes:
       - ../..:/app/src
     networks:
       mynetwork:
-        ipv4_address: 172.19.0.12
+        ipv4_address: 172.29.0.12
     environment:
       - C2KV_NODE_ID=2
       - C2KV_NODE_NAME=node2
-      - C2KV_NODE_IA=172.19.0.12:7878
-      - C2KV_NODE_EA=172.19.0.12:2345
-      - C2KV_NODE_PEERS=1-node1-172.19.0.11:7878,3-node3-172.19.0.13:7878
+      - C2KV_NODE_IA=172.29.0.12:7878
+      - C2KV_NODE_EA=172.29.0.12:2345
+      - C2KV_NODE_PEERS=1-node1-172.29.0.11:7878,3-node3-172.29.0.13:7878
   node3:
     build:
       context: ../..
@@ -67,21 +69,22 @@ services:
       # rpc port
       - 2343:2345
     tty: true
+    command: /bin/sh -lc "/usr/sbin/sshd; exec /usr/bin/c2kv -m ${C2KV_RUN_MODE:-release} -c ${C2KV_CONFIG_PATH:-/code/config_dev.yaml}"
     volumes:
       - ../..:/app/src
     networks:
       mynetwork:
-        ipv4_address: 172.19.0.13
+        ipv4_address: 172.29.0.13
     environment:
       - C2KV_NODE_ID=3
       - C2KV_NODE_NAME=node3
-      - C2KV_NODE_IA=172.19.0.13:7878
-      - C2KV_NODE_EA=172.19.0.13:2345
-      - C2KV_NODE_PEERS=2-node2-172.19.0.12:7878,1-node1-172.19.0.11:7878
+      - C2KV_NODE_IA=172.29.0.13:7878
+      - C2KV_NODE_EA=172.29.0.13:2345
+      - C2KV_NODE_PEERS=2-node2-172.29.0.12:7878,1-node1-172.29.0.11:7878
 networks:
   mynetwork:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.19.0.0/16
-          gateway: 172.19.0.1
+        - subnet: 172.29.0.0/16
+          gateway: 172.29.0.1

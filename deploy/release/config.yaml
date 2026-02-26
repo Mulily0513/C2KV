@@ -2,29 +2,35 @@ zapConfig:
   level: info
   format: console
   prefix: "[C2KV]"
-  director: c2kv-log
+  director: "./var/c2kv/log"
   showLine: true
   encodeLevel: LowercaseColorLevelEncoder
   logInConsole: "true"
   maxAge: 10
 dbConfig:
-  dbPath: "./data"
+  dbPath: "./var/c2kv/data"
   walConfig:
-    walDirPath: "./data/wal"
+    walDirPath: "./var/c2kv/data/wal"
     segmentSize: 60
+    syncMode: "always"
+    syncIntervalMs: 100
+    walStateCheckpoint: 64
   memConfig:
     memTableSize: 2048
     memTablePipeSize: 1
     memTableNums: 1
     concurrency: 5
   valueLogConfig:
-    valueLogDir: "./data/vlog"
+    valueLogDir: "./var/c2kv/data/vlog"
     partitionNums: 3
+    partitionHash: "fnv64a"
     sstSize: 60
 raftConfig:
   electionTick: 10
   heartbeatTick: 100
   requestTimeOut: 1000
+  maxInflightMsg: 1024
+  maxSizePerMsg: 4194304
   eAddr: 172.19.0.13:2345
   iAddr: 172.19.0.13:7878
   peers:

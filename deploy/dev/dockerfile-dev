@@ -8,8 +8,8 @@ RUN go install github.com/go-delve/delve/cmd/dlv@v1.20.0 && \
     apt-get install -y vim &&  \
     apt-get install -y net-tools && \
     # install  ssh
-    mkdir /var/run/sshd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    mkdir -p /var/run/sshd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     echo 'root:root1234' | chpasswd
 
 # build c2kv
@@ -17,8 +17,8 @@ ENV GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
 WORKDIR /code/src
 COPY . .
 COPY ./deploy/dev/config_dev.yaml /code/
-WORKDIR /code/src/src
-RUN go build -o c2kv && mv c2kv /usr/bin/
+RUN go build -o /usr/bin/c2kv ./cmd/c2kv
+RUN go build -o /usr/bin/c2kvctl ./cmd/c2kvctl
 COPY ./scripts /code/scripts
 RUN chmod +x /code/scripts/*.sh
 

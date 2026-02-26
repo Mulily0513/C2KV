@@ -1,0 +1,121 @@
+name: C2KV Compose Smoke
+
+on:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "deploy/dev/**"
+      - "eval/benchmark/**"
+      - ".github/workflows/**"
+  push:
+    branches: [master, main]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "deploy/dev/**"
+      - "eval/benchmark/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+concurrency:
+  group: c2kv-compose-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24.x"
+  C2KV_ENDPOINTS: "127.0.0.1:2341,127.0.0.1:2342,127.0.0.1:2343"
+
+jobs:
+  compose-smoke:
+    name: Compose 3-Node Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            eval/ycsb-runner/go.sum
+
+      - name: Docker info
+        run: |
+          docker version
+          docker compose version
+
+      - name: Build and start C2KV cluster
+        run: docker compose -f deploy/dev/compose_dev.yaml -p c2kv-smoke up -d --build
+
+      - name: Wait until write probe succeeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=0
+          for i in $(seq 1 50); do
+            if go run ./eval/benchmark put \
+              --endpoints="${C2KV_ENDPOINTS}" \
+              --target-leader \
+              --total=1 \
+              --clients=1 \
+              --req-timeout=2s >/tmp/c2kv_probe.log 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "c2kv cluster not ready"
+            cat /tmp/c2kv_probe.log || true
+            exit 1
+          fi
+
+      - name: Smoke benchmark (put/range/mixed)
+        run: |
+          go run ./eval/benchmark put \
+            --endpoints="${C2KV_ENDPOINTS}" \
+            --target-leader \
+            --total=300 \
+            --clients=8 \
+            --key-space-size=200 \
+            --req-timeout=5s
+
+          go run ./eval/benchmark range \
+            --endpoints="${C2KV_ENDPOINTS}" \
+            --target-leader \
+            --total=300 \
+            --clients=8 \
+            --key-space-size=200 \
+            --range-size=1 \
+            --req-timeout=5s
+
+          go run ./eval/benchmark mixed \
+            --endpoints="${C2KV_ENDPOINTS}" \
+            --target-leader \
+            --total=500 \
+            --clients=8 \
+            --key-space-size=300 \
+            --read-percent=50 \
+            --warmup-writes=200 \
+            --req-timeout=5s
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f deploy/dev/compose_dev.yaml -p c2kv-smoke logs --no-color
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker compose -f deploy/dev/compose_dev.yaml -p c2kv-smoke down -v --remove-orphans
+          docker system prune -af --volumes || true

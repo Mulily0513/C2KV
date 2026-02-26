@@ -1,0 +1,14 @@
+.git
+.idea
+.vscode
+
+data
+var
+c2kv-log
+internal/log/log
+
+*.TMP
+*.SEG
+*.RAFT-SEG
+*.WAL-SEG
+*.VLOG-SEG
